@@ -537,7 +537,8 @@ The wine-quality data are from the UCI Machine Learning Repository
 [@cortez2009]. The estimator is provided as a Python package (`sudo`)
 together with a parallel set of R scripts that prototype and validate each
 step; the code and the committed result files behind every table and figure
-are in the project repository at <https://github.com/bgreenwell/sudo>.
+are in the open-source (MIT-licensed) project repository at
+<https://github.com/bgreenwell/sudo>.
 
 # Declaration of AI use
 
