@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+.uv/
+
+# Test caches
+.pytest_cache/
+
+# Results (large CSVs; track summaries, not raw runs)
+manuscript/results/*.csv
+
+# Vendored third-party replication package (618M of data; lives in Dropbox, not git)
+manuscript/replication_AssessingPlanB/
+
+# Paper build artifacts (extensions are committed, not ignored)
+manuscript/paper/_freeze/
+manuscript/paper/.quarto/
+manuscript/paper/*_files/
+manuscript/paper/*.html
+manuscript/paper/*.pdf
+manuscript/paper/*.tex
+
+# uv build cache inside python/
+python/.venv/
+
+# Root-level Quarto output (renders of .md files)
+*.html
+*.pdf
+*_files/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Claude Code session-local state
+.claude/
+
+# Internal notes and generated summaries (not published)
+/archive/
+/TODO.md
+/TLDR.md
+manuscript/OVERVIEW.md
+manuscript/OVERVIEW copy.md
+manuscript/paper/sudo_paper_review.md

@@ -1,0 +1,3 @@
+"stage","theta","learner","mean_var_ratio","var_ratio_ttest_p","frac_p_het_sig","mean_abs_theta_bias","n_reps"
+"3l",1.5,"pl_mboost",0.987212448939141,0.085569601968588,0.09,0.158658092579326,100
+"3l",3,"pl_mboost",0.971763569642746,0.000122885577712872,0.08,0.431705974846529,100

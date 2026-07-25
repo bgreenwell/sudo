@@ -1,0 +1,3 @@
+"stage","theta","learner","mean_var_ratio","var_ratio_ttest_p","frac_p_het_sig","mean_abs_theta_bias","n_reps"
+"3j",1.5,"pl_backfit",0.96264180999481,2.62502322257266e-06,0.13,0.10881475543182,100
+"3j",3,"pl_backfit",0.90206674235432,2.79750194608196e-27,0.41,0.186690654333746,100

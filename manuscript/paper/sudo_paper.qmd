@@ -1,0 +1,549 @@
+---
+title: "Surrogate-Assisted Double Machine Learning: Causal Inference with Binary and Ordinal Outcomes"
+author:
+  - name: Brandon M. Greenwell
+    email: greenwell.brandon@gmail.com
+    affiliation: ""
+  # Placeholder co-authors: fill in names, emails, and affiliations.
+  - name: Second Author
+    email: ""
+    affiliation: ""
+  - name: Third Author
+    email: ""
+    affiliation: ""
+  - name: Fourth Author
+    email: ""
+    affiliation: ""
+date: today
+abstract: |
+  Double Machine Learning (DML) delivers root-$n$ consistent, asymptotically normal causal estimates by pairing Neyman-orthogonal scores with cross-fitting, but its partially linear model is confined to continuous outcomes. Binary outcomes are served only by a logit-hardwired logistic estimator; ordinal outcomes by no DML method we are aware of. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a categorical response as missing data and fills it in: each observation is completed to a continuous *surrogate* drawn from the assumed error distribution, truncated to the interval the observed category implies, after which ordinary partialling-out applies. The completions are multiple imputations, and pooling them by Rubin's rules is what restores nominal coverage, but only when the draws are *proper*, redrawing the imputation model's parameters (thresholds included) before each draw; naive and improper draws demonstrably under-cover. The method is link-flexible and the surrogate residuals double as a link diagnostic. We further give a closed-form account of how imputation-model error reaches the target: it passes through a truncation factor that rises from about 0.3 to 1 as the signal strengthens, so the imputation model's error is first-order, not the second-order nuisance error of standard DML. With a partially-linear machine-learning imputation model and a full-pipeline bootstrap, the method attains nominal coverage even with black-box learners. We illustrate on wine-quality data, estimating the effect of volatile acidity on an ordinal quality score.
+format:
+  arxiv-pdf:
+    keep-tex: false
+bibliography: references.bib
+---
+
+# Introduction
+
+Many outcomes that scientists want causal effects for are categorical.
+A patient relapses or not; a wine is rated on a five- or ten-point scale;
+a survey respondent is dissatisfied, neutral, or satisfied. For a
+*continuous* outcome, Double Machine Learning [DML, @chernozhukov2018]
+provides a now-standard route to a causal effect under flexible,
+high-dimensional adjustment: predict the outcome from the covariates and
+the treatment from the covariates with any machine-learning models, remove
+both predictions, and read the effect from the residual-on-residual
+regression. The removal, a Frisch-Waugh-Lovell (FWL) orthogonalization,
+is what lets the nuisance predictions be flexible without contaminating the
+effect, because the score is Neyman-orthogonal and, given standard
+convergence-rate conditions, is insensitive to first-order nuisance error
+[@chernozhukov2018].
+
+That machinery is built for a continuous outcome. A binary or ordinal outcome
+obeys the additive structure only on a *latent* scale: there is an
+unobserved continuous utility $U = \theta_0 D + g_0(X) + \varepsilon$, and
+we see only which interval $U$ fell in. Applying the continuous
+partialling-out estimator to the raw labels either changes the estimand or
+is undefined. The available remedy for the binary case is the logistic
+partially linear model of @liu2021lplr, the DML estimator for a binary
+outcome with an official implementation in the DoubleML software. It is
+effective but narrow: the logit link is built into its orthogonal score, so
+it is confined to binary responses under a logistic distribution and has no ordinal
+counterpart; for ordinal outcomes we are aware of no DML estimator. Ordinal
+outcomes are therefore the sharpest gap, and the one this paper closes,
+while the binary-logistic case of @liu2021lplr reappears as a single link
+choice within SUDO.
+
+Independently, @liu2018 and @cheng2021 developed *surrogate residuals* as a
+diagnostic device for discrete-choice models. Grounded in random utility
+theory [@mcfadden1974], a surrogate maps an observed category to a draw
+from the conditional distribution of its latent utility, yielding a continuous,
+homoscedastic residual with a known reference distribution
+[@greenwell2018]. We repurpose that construction as an *estimation* device.
+Substituting a surrogate $S$ for the unobserved $U$ turns the discrete
+problem into a continuous one on which the FWL recipe runs unchanged. The
+surrogate is a guess, so a single completion is not enough; the completions
+are multiple imputations, pooled by Rubin's rules [@rubin1987]. Getting
+that pooling right, imputing from the imputation model's *posterior
+predictive* rather than a plug-in, is the crux of valid inference and, we
+find, where a naive application fails.
+
+**Contributions.**
+
+1. A DML estimator for binary and ordinal outcomes in one framework, not
+   tied to the logit link, with a built-in link diagnostic.
+2. The finding that, across the designs we study, proper
+   multiple-imputation draws are both necessary and sufficient for nominal
+   coverage, quantified against naive and improper alternatives.
+3. A closed-form analysis of how imputation-model error propagates to the
+   effect, revealing a *first-order* sensitivity absent from standard DML,
+   confirmed by a direct perturbation experiment.
+4. A route to nominal coverage with black-box machine-learning imputation
+   models, via a partially-linear structure and a full-pipeline bootstrap.
+5. An application to wine quality, an ordinal latent-scale estimand for
+   which we are aware of no existing DML estimator.
+
+# Setup and estimand
+
+Let $D$ be a treatment, $X \in \mathbb{R}^p$ covariates, and $Y$ a
+categorical outcome: binary, $Y = \mathbf{1}\{U > 0\}$, or ordinal,
+$Y = j \iff c_{j-1} < U \le c_j$ for thresholds
+$-\infty = c_0 < c_1 < \dots < c_{J-1} < c_J = \infty$. The latent utility
+follows a partially linear model
+
+$$U = \theta_0 D + g_0(X) + \varepsilon, \qquad \varepsilon \sim F$$ {#eq-latent}
+with $g_0$ an arbitrary nuisance function and $F$ a known error distribution
+(logistic, giving proportional-odds; extreme-value, giving
+complementary-log-log; etc.). The target $\theta_0$ is the treatment effect
+on the latent-utility scale, the same quantity a correctly specified
+cumulative-link model targets, but with $g_0$ left nonparametric. It is not
+the probability-scale average treatment effect; the two answer different
+questions and should not be compared against a common truth. Because $F$
+fixes the variance of $\varepsilon$, this scale is set by the link rather
+than estimated, which is what gives $\theta_0$ its familiar reading: under
+the logistic link a one-unit change in $D$ shifts the cumulative log-odds
+of $Y$ by $\theta_0$, so $\exp(\theta_0)$ is a proportional-odds ratio.
+
+Four assumptions identify $\theta_0$. (i) *Selection-on-observables*: the
+latent error is mean-independent of the treatment given the covariates,
+$E[\varepsilon \mid D, X] = E[\varepsilon \mid X]$, so no unobserved
+confounder acts beyond $X$. (ii) *A constant latent-scale effect*: the
+partially linear form (@eq-latent) makes $\theta_0$ a single number rather
+than a function of $X$. (iii) *A correctly specified latent distribution*:
+the surrogate completion draws from $F$ and the assumed cutpoints, so the
+conditional law of $\varepsilon$, not merely its mean, must be right; this
+is the assumption the link diagnostic monitors, and the one the propagation
+analysis shows the estimate is most sensitive to. (iv) *Overlap*: the
+treatment keeps support after adjustment, so its residual is not
+annihilated. Assumptions (i) and (iv) are the standard causal conditions,
+made explicit for the application through a stated causal graph; (ii) and
+(iii) are modeling choices shared with any cumulative-link analysis.
+
+# Background: FWL, DML, and surrogate residuals
+
+The engine underneath DML is the Frisch-Waugh-Lovell (FWL) theorem: in a
+linear model the coefficient on $D$ equals the coefficient from regressing
+the $Y$-residuals on the $D$-residuals after partialling $X$ out of both.
+DML makes this practical for high-dimensional $X$ by estimating the two
+partialling regressions with flexible machine learning and $K$-fold
+cross-fitting, and by using an orthogonal score so that first-order error
+in those estimates does not bias the effect [@chernozhukov2018].
+
+FWL still runs on a binary or ordinal label, but it targets the wrong thing:
+the residual of a $0/1$ variable is bounded and heteroscedastic, and
+regressing it on the treatment residual estimates a probability-scale
+contrast rather than the latent-scale $\theta_0$. Recovering $\theta_0$ is
+the obstacle SUDO removes.
+
+The removal uses *surrogate residuals* [@liu2018; @cheng2021], developed
+originally to diagnose discrete-choice models. Grounded in random utility
+theory [@mcfadden1974], the construction maps an observed category to a
+draw from the conditional distribution of its latent utility, producing a
+continuous residual that is homoscedastic with a known reference
+distribution [@greenwell2018]. We use it not to diagnose but to *complete*
+the outcome, so that FWL, and then DML, can run.
+
+# Surrogate FWL: the idea in its simplest form
+
+The whole method reduces to one move. Fit an imputation model of the
+outcome on $(D, X)$ to obtain an estimated latent index $\hat V_i$; for each
+observation draw a surrogate $S_i$ from the assumed distribution $F$, located at $\hat V_i$ and truncated to the interval the observed category implies:
+$(0,\infty)$ if $Y_i = 1$, $(-\infty, 0]$ if $Y_i = 0$, or
+$(\hat c_{Y_i-1}, \hat c_{Y_i}]$ in the ordinal case. When the imputation model is correct and its parameters known, the
+surrogate is drawn from the conditional law of $U$ given $(D, X)$, so
+$E[S \mid D, X] = E[U \mid D, X]$ (Theorem 1 of @cheng2021) and the
+completed data satisfy
+
+$$S = \theta_0 D + g_0(X) + \eta, \qquad E[\eta \mid D, X] = 0$$ {#eq-completed}
+
+with the same $g_0$ as in @eq-latent, so FWL recovers $\theta_0$. This is
+the exact case. With an estimated index $\hat V$ the equality holds only
+asymptotically under consistent estimation, and approximately otherwise;
+the propagation analysis below makes the residual error precise. The
+demonstration that follows fits the index by maximum likelihood, so it sits
+in the asymptotic regime.
+
+Nothing more is needed to see the idea work. The self-contained example
+below (base R, no packages) draws a binary outcome from a logistic latent
+model, fits the imputation model, completes the outcome to a surrogate,
+and compares three estimates of $\theta_0$: the logistic-regression
+coefficient on the treatment, the FWL estimate on the *true* (unobserved)
+utility (the oracle), and the FWL estimate on the *surrogate* completion.
+
+```{r}
+#| label: surrogate-fwl-demo
+#| echo: true
+set.seed(1)
+n <- 40000; theta <- 1.5
+X <- rnorm(n)
+D <- rbinom(n, 1, plogis(0.8 * X))        # treatment depends on a covariate
+U <- theta * D + X + rlogis(n)            # latent utility (never observed)
+Y <- as.integer(U > 0)                    # only the binary label is seen
+
+V  <- predict(glm(Y ~ D + X, binomial))   # fitted latent index
+Flo <- plogis(-V)                         # CDF of logistic(V) at the cutpoint 0
+p  <- ifelse(Y == 1, Flo + runif(n) * (1 - Flo), runif(n) * Flo)
+S  <- V + qlogis(pmin(pmax(p, 1e-9), 1 - 1e-9))   # truncated-logistic surrogate
+
+rD  <- resid(lm(D ~ X))                   # partial the covariate out of D
+fwl <- function(z) sum(rD * resid(lm(z ~ X))) / sum(rD^2)
+round(c(glm       = unname(coef(glm(Y ~ D + X, binomial))["D"]),
+        oracle    = fwl(U),               # FWL on the true utility
+        surrogate = fwl(S)), 3)           # FWL on the surrogate completion
+```
+
+All three land on $\theta_0 = 1.5$: the surrogate completion recovers, from
+the binary labels alone, the coefficient the latent model would have. The
+identical construction, an ordinal cumulative-link index with interval
+truncation, works for ordinal outcomes, and the same estimator is provided
+as a Python package with a parallel set of R scripts. The rest of the paper does two
+things to this simple estimator: it hands the partialling to machine
+learning, and it makes the inference honest, since a single completion
+understates uncertainty.
+
+# Surrogate-assisted double machine learning
+
+**The estimator.** Cross-fit the two adjustment nuisances
+$\hat m(X) \approx E[D \mid X]$ and $\hat\ell(X) \approx E[S \mid X]$, and
+form the residual-on-residual estimate
+
+$$\hat\theta = \frac{\sum_i (S_i - \hat\ell(X_i))(D_i - \hat m(X_i))}
+{\sum_i (D_i - \hat m(X_i))^2}$$ {#eq-theta}
+
+The $\hat\ell$ regression uses $X$ only: the index carried $D$'s signal
+into $S$, and partialling on $X$ alone strips it back out so the residual
+regression isolates $\theta_0$. The score
+$\psi = (S - \ell(X) - \theta(D - m(X)))(D - m(X))$ is Neyman-orthogonal in
+$(\ell, m)$: its derivatives in both nuisance directions vanish by the
+tower property, so first-order error in $\hat\ell$ or $\hat m$ does not bias
+$\hat\theta$. This protection covers the two *adjustment*
+nuisances but not the imputation model that produced $\hat V$; the
+next section analyzes the difference.
+
+**Proper multiple-imputation inference.** A single completion understates
+uncertainty, so we draw $B$ surrogates and pool with Rubin's rules
+[@rubin1987]: the estimate is $\bar\theta = B^{-1}\sum_b \hat\theta^{(b)}$
+and the total variance is $T = \bar W + (1 + 1/B) B_{\!*}$, the mean
+within-draw sandwich variance plus the inflated between-draw variance, with
+a Barnard-Rubin small-sample $t$ reference [@barnard1999]. What matters is
+*how* the draws differ. Each surrogate is centered at an estimated index
+$\hat V = x'\hat\beta$; that estimate carries sampling error, and reusing
+one fitted $\hat\beta$ across all draws (an *improper* draw) leaves the
+shared error invisible to the between-draw variance, so $T$ comes up short.
+A *proper* draw redraws the imputation model's parameters,
+$\beta^{(b)} \sim N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$
+(thresholds included in the ordinal case), before each completion, the
+large-sample normal form of Rubin's posterior-predictive requirement. @tbl-ladder shows the three
+schemes moving coverage from 0.80 (naive) to 0.93 (improper) to 0.96-0.97
+(proper).
+
+It helps to name what $T$ is accounting for. Three things vary from draw to
+draw: the sampling noise in $\hat\theta$ once a completion is fixed (the
+within-draw $\bar W$), the surrogate randomness in $S$, and the uncertainty
+in the imputation model itself. Improper draws discard the last of these.
+The proper draw restores it by sampling
+$\beta^{(b)} \sim N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$, the
+asymptotic sampling distribution of $\hat\beta$. Under standard regularity
+this normal limit is shared by the parameter's sampling distribution, its
+flat-prior posterior, and the parametric-bootstrap distribution, so the
+proper draw is the large-sample form of a parametric bootstrap of the
+imputation model, read off the covariance rather than recomputed by
+refitting. It therefore needs a model that reports a
+usable covariance, and that requirement is exactly what breaks for a
+black-box learner, taken up in the machine-learning section below.
+
+**Ordinal outcomes and the link.** The ordinal case is identical once a
+cumulative-link model supplies the index and thresholds; because the
+thresholds are parameters too, the proper draw perturbs them jointly with
+the coefficients, which is why we fit with a model whose covariance covers
+them. The error distribution $F$ is an assumption, checked by a diagnostic: under a correct link the surrogate residuals $R = S - \hat V$ are homoscedastic, so
+a smooth of $R^2$ on $X$ (on an independent draw stream) flags a
+misspecified link through variance drift that mean-based checks miss.
+
+# How imputation-model error propagates
+
+The orthogonality established above protects $\hat\theta$ from error in the
+adjustment nuisances but says nothing about the imputation model, whose
+error is baked into the completed data $S$ rather than differenced away.
+This section quantifies that channel. It is the structural difference
+between SUDO and standard DML: the imputation model, unlike the two
+adjustment nuisances, sits outside the orthogonality guarantee, so the
+method is DML-assisted rather than fully orthogonal, and its overall score
+is not insensitive to every estimated component.
+
+Conditional on the cross-fitting folds, $\hat V$ is a deterministic
+function of $(D, X)$, while $Y \mid D, X$ is generated by the truth. Since
+$S$ is $\hat V$ plus truncated noise,
+
+$$E[S \mid D, X] = \psi(\hat V, \eta), \quad
+\psi(v, e) = v + F(e)\,\mu_+(v) + (1 - F(e))\,\mu_-(v)$$ {#eq-ess}
+
+with $\mu_\pm$ the truncated-noise mean corrections. The correctly centered
+draw is exact, $\psi(e, e) = e$ (recovering Theorem 1 of @cheng2021),
+but index error passes through with a factor strictly below one,
+
+$$c(e) = \left.\frac{\partial \psi}{\partial v}\right|_{v=e}
+= 1 - f(e)\,\bigl(\mu_+(e) - \mu_-(e)\bigr), \qquad f = F'$$ {#eq-ce}
+
+Under a logistic link $c$ rises from $0.31$ at $e = 0$ to $1$ in the tails
+(@fig-passthrough).
+
+```{r}
+#| label: fig-passthrough
+#| echo: false
+#| fig-width: 5
+#| fig-height: 2.6
+#| fig-cap: "Pass-through factor $c(e)$ under a logistic link. Imputation-model error at signal level $e$ reaches $\\hat\\theta$ multiplied by $c(e)$, which climbs from about 0.31 at $e=0$ toward 1 as the signal grows: the truncation self-corrects when $Y$ is informative and stops doing so once $Y$ is near-deterministic. Averaging $c$ over the index distribution gives the $\\bar c_1$ quoted in the text."
+mu_plus  <- function(e) integrate(function(w) w * dlogis(w), -e, Inf)$value / plogis(e)
+mu_minus <- function(e) integrate(function(w) w * dlogis(w), -Inf, -e)$value / plogis(-e)
+ce <- function(e) 1 - dlogis(e) * (mu_plus(e) - mu_minus(e))
+e <- seq(0, 6, by = 0.05)
+cval <- sapply(e, ce)
+par(mar = c(4, 4, 1, 1), cex = 0.9)
+plot(e, cval, type = "l", lwd = 2, ylim = c(0, 1),
+     xlab = "index level e", ylab = expression("pass-through factor " * c(e)))
+abline(h = 1, lty = 3, col = "grey60")
+points(0, ce(0), pch = 19)
+text(0.15, ce(0), sprintf("%.2f", ce(0)), pos = 4, cex = 0.9)
+```
+
+Linearizing $\psi$ around the truth, the bias of $\hat\theta$ is
+approximately $\bar c_1\, \delta_D$ plus a small covariate-direction leak,
+where $\delta_D$ is the imputation model's error in its effective treatment
+coefficient and $\bar c_1 = E[w\, c(\theta_0 + g)] / E[w]$,
+$w = m(1-m)$.
+
+Three consequences follow. First, the truncation *self-corrects*: because
+$Y$ comes from the truth, it drags $S$ toward the correct interval, which
+is why $c < 1$. But $c \to 1$ as the signal grows: once $Y$ is nearly
+deterministic it adds no information beyond $\hat V$, and the self-
+correction switches off. This, not any numerical instability, is why
+inference is hardest at strong effect sizes. Second, the covariate
+direction is not fully protected either, because $S$ is nonlinear in
+$\hat V$; the leak is merely small in practice. Third, in the sharpest
+contrast with standard DML, the imputation model's error enters
+$\hat\theta$ *linearly*. In DML the outcome is observed and nuisance error
+enters only through a *product* of two errors [@chernozhukov2018;
+@robinson1988]: get either nuisance right and the bias vanishes. SUDO adds
+a third model whose treatment-direction error is unprotected and
+first-order, damped only by $\bar c_1 < 1$. @tbl-sensitivity confirms this
+numerically: a perturbation applied to the outcome nuisance in DML leaves
+the estimate unbiased at every level, whereas the same-sized index
+perturbation in SUDO produces a linear bias with slope exactly $\bar c_1$.
+
+# Machine-learning imputation models
+
+@eq-ess makes imputation-model quality matter more than
+adjustment-model quality, the reverse of the usual DML intuition. A
+well-specified parametric imputation model (logistic or cumulative-link)
+gives valid inference directly, since its covariance supplies the proper
+draw. Two obstacles arise with a black-box learner: it can carry a
+treatment-direction error $\delta_D$ (a bias problem), and it has no
+covariance matrix from which to draw (an inference problem).
+
+The bias is addressed by a *partially-linear* imputation model,
+$\hat V = \hat\beta D + \hat f(X)$, in which the treatment enters linearly
+and machine learning handles only $X$, so no treatment-by-covariate
+artifact can arise. Fitting $\hat f$ by backfitting a flexible learner is
+unbiased across effect sizes in our experiments. The inference problem is
+addressed by a *full-pipeline bootstrap*, the nonparametric counterpart of
+the proper draw: where a parametric model injects imputation-model
+uncertainty by sampling $\beta$ from its covariance, here we resample the
+whole dataset and rerun the entire procedure, cross-fitting and all, using
+the spread of the results as the standard error. Both target the same
+variance component; the bootstrap simply obtains it by refitting when no
+covariance is available to sample from. It has to wrap the *whole* pipeline,
+because a within-fold refit of the model alone under-propagates that same
+imputation-model variability. Together these restore nominal coverage
+with a black-box imputation model (@sec-sims). A Bayesian ensemble, whose
+posterior draws are complete alternative imputation models, would supply
+proper draws directly and is a natural extension. A forest's out-of-bag or
+infinitesimal-jackknife variance [@wager2014] is not such a route: it
+quantifies prediction uncertainty at a point, not a coherent joint draw of
+the whole imputation model.
+
+# Simulation study {#sec-sims}
+
+Unless noted, data are simulated from the latent model (@eq-latent) with
+five covariates, a
+treatment whose assignment depends on some of them, logistic noise, and a
+nonlinear $g_0$; coverage targets $0.95$ and Monte-Carlo error on a
+coverage figure is about $\pm 0.02$. **SD** is the estimator's true
+run-to-run variability and **Mean SE** the standard error it reports;
+Mean SE below SD means intervals that are too short. Replication counts,
+the full data-generating equations, learner and tuning specifications, fold
+and draw counts, and per-cell Monte-Carlo standard errors are given in the
+repository.
+
+**Proper draws are what deliver coverage.** With a simple binary design and
+a correct parametric imputation model, only the proper scheme reaches
+nominal coverage; the naive interval covers 0.80 and the improper 0.93
+(@tbl-ladder).
+
+| Scheme | Bias | SD | Mean SE | Coverage |
+|---|---:|---:|---:|---:|
+| Naive single draw | +0.003 | 0.083 | 0.055 | 0.804 |
+| Improper, $B=25$ | +0.004 | 0.071 | 0.067 | 0.924 |
+| Proper, $B=25$ | +0.005 | 0.072 | 0.076 | 0.970 |
+
+: Inference schemes, binary outcome, $n=5000$, $\theta_0 = 1.5$. {#tbl-ladder}
+
+**Ordinal outcomes.** With a three-category outcome and machine-learning
+adjustment, SUDO is essentially unbiased with valid-to-conservative
+coverage (@tbl-ordinal), a regime for which we are aware of no DML
+competitor. The conservatism is Rubin's rule erring safe under an
+uncongenial imputation model [@meng1994].
+
+| Configuration | Bias | SD | Mean SE | Coverage |
+|---|---:|---:|---:|---:|
+| Parametric, $n=3000$ | +0.002 | 0.077 | 0.083 | 0.976 |
+| Spline + ML nuisances, $n=2000$ | +0.022 | 0.110 | 0.149 | 0.985 |
+
+: Ordinal outcome, $J=3$, $\theta_0 = 1.0$. {#tbl-ordinal}
+
+**Link misspecification.** Generating Gumbel noise but assuming a logistic
+link biases the latent-scale effect badly (+0.77 binary, +0.58 ordinal,
+coverage 0); the correct link removes it (bias $<0.005$, nominal coverage),
+and the variance-drift diagnostic flags the wrong link (p $\approx$ 2e-4)
+while clearing the right one (p $\approx$ 0.43).
+
+**First-order versus second-order sensitivity.** Perturbing one input by a
+known function and tracing the bias (@tbl-sensitivity) confirms the
+propagation analysis: standard
+DML with the observed outcome is unbiased under an arbitrarily wrong outcome
+nuisance provided the propensity is right, whereas SUDO's index error is
+linear, with treatment-direction slope matching the derived $\bar c_1$
+(0.669 at $\theta_0 = 1.5$, 0.861 at $\theta_0 = 3$) to within 0.001.
+
+| Arm | Perturbed | Bias vs. perturbation |
+|---|---|---|
+| DML | outcome nuisance only | flat, $\approx 0$ |
+| DML | both nuisances | quadratic |
+| SUDO | index, treatment direction | linear, slope $=\bar c_1$ |
+
+: Nuisance-sensitivity ladder. {#tbl-sensitivity}
+
+**Black-box imputation models.** A tuned partially-linear imputation model
+is unbiased at both effect sizes; pairing it with the full-pipeline
+bootstrap brings coverage at the strong effect from 0.86 to 0.95
+(percentile interval, 100 replications, so coverage is resolved to about
+$\pm 0.03$), with the reported SE matching the true variability.
+
+# Application: volatile acidity and wine quality
+
+We estimate the effect of volatile acidity (the acetic-acid
+"vinegar/nail-polish" fault) on wine quality, an ordinal sensory score
+(the median of blind tasters) on the UCI wine-quality data [@cortez2009],
+1,599 red and 4,898 white wines. Quality spans six to seven ordinal
+levels.
+
+This is observational data, so a causal reading rests on an assumed causal
+structure (@fig-dag). Volatile acidity is a plausible treatment because its
+effect on quality has a clear expected sign (tasters penalize the acetic
+fault) and because it is a fault endpoint rather than obviously upstream of
+the other chemistry. A causal reading still rests on strong assumptions:
+that the remaining physicochemical measurements are pre-treatment
+adjustments rather than mediators or proxies of volatile acidity, and that
+winemaking practice has no direct effect on quality beyond the measured
+chemistry, the exclusion restriction the graph encodes. We do not defend
+these assumptions here; the application illustrates feasibility on a
+genuinely ordinal outcome rather than settling a causal question, and we
+leave sensitivity to the adjustment set and to unmeasured confounding for
+applied follow-up.
+
+```{mermaid}
+%%| label: fig-dag
+%%| fig-width: 3.2
+%%| fig-cap: "Assumed causal structure. Volatile acidity (the treatment) affects latent quality directly; unobserved winemaking practice confounds both through the measured chemistry, the adjustment set."
+flowchart TD
+  P((winemaking<br/>practice)):::u --> VA[volatile acidity]
+  P --> X[other chemistry]
+  X --> VA
+  VA --> Q[latent quality]
+  X --> Q
+  classDef u fill:#eee,stroke-dasharray:4 3;
+```
+
+There is adequate residual variation: after adjusting for the other
+chemistry, volatile acidity retains 75% (red) and 94% (white) of its
+standard deviation (residual $\sqrt{1 - R^2}$ from the $R^2$ column of
+@tbl-wine), so its residual is not annihilated and the residual-on-residual
+regression is well posed. Applying ordinal SUDO (cumulative-link imputation
+model, proper draws, cross-fitted nuisances, Rubin pooling) gives a clearly
+negative effect on latent quality, stable across a linear and a
+partially-linear (spline) imputation model (@tbl-wine). The naive
+alternative of reading the coefficient straight off the cumulative-link
+model reports a much smaller standard error (white: 0.031 versus
+0.053-0.074) because it treats the parametric model as exactly correct and
+ignores the completion and cross-fitting uncertainty SUDO propagates; this
+is the same inference gap the simulations isolate (@tbl-ladder).
+
+Volatile acidity is standardized before fitting, so these coefficients are
+per one standard deviation (about $0.18$ g/dm$^3$ for red, $0.10$ for
+white), which keeps the effect comparable across the two wines instead of
+tied to the raw acetic-acid scale. The proportional-odds reading then makes
+the magnitude concrete: a one-SD rise in volatile acidity multiplies the
+odds of a wine scoring above any fixed quality level by $\exp(\hat\theta)$,
+about $0.59$ for red ($\hat\theta = -0.53$) and $0.62$ to $0.66$ for white,
+a reduction of roughly a third to 40% in those odds per standard deviation.
+
+| Wine | Overlap $R^2(D\!\sim\!X)$ | Naive read-off | SUDO (linear) | SUDO (spline) |
+|---|---:|---:|---:|---:|
+| Red | 0.44 | $-0.61$ (0.07) | $-0.53$ [$-0.68,-0.38$] | $-0.53$ [$-0.69,-0.36$] |
+| White | 0.12 | $-0.50$ (0.03) | $-0.41$ [$-0.51,-0.31$] | $-0.48$ [$-0.63,-0.34$] |
+
+: Effect of a one-SD increase in volatile acidity on latent wine quality. Standard errors in parentheses, 95% intervals in brackets. {#tbl-wine}
+
+# Discussion
+
+SUDO extends double machine learning to binary and, to our knowledge for
+the first time, ordinal latent-scale outcomes, by treating the latent
+outcome as missing data and completing it. It subsumes the existing
+binary-logistic DML estimator of @liu2021lplr as the special case of a
+logit link, and removes both of that method's restrictions: it admits any
+error distribution and handles ordinal as well as binary responses. The
+methodological core is inferential: the completions are multiple
+imputations, and in our experiments only proper draws, which redraw the
+imputation model's parameters (thresholds included), attain nominal
+coverage. The method is link-flexible over any distribution for which the
+truncated draw and reference are available, and its residuals give a
+diagnostic that can flag, though not confirm, a wrong link.
+
+The cost, made precise by the propagation analysis, is that the imputation model
+sits outside the orthogonality guarantee: its error reaches the effect at
+first order, through a truncation factor that weakens as the signal
+strengthens. This is a genuine difference from standard DML, where nuisance
+error is second-order, and it should be stated plainly. It is also
+manageable: a well-specified parametric or a partially-linear
+machine-learning imputation model, paired with a full-pipeline bootstrap,
+attains nominal coverage throughout our experiments.
+
+Several problems remain open. For the proper-draw validity and the
+treatment-in-imputation-model step we give simulation evidence here; formal
+proofs of both are still to be established, and until then SUDO is best read
+as a simulation-supported estimator rather than a fully proven inferential
+procedure. Such a result would state the imputation-model, nuisance-rate,
+cross-fitting, and overlap conditions, the influence function, and the
+regime for $B$. Extending the black-box results beyond the two
+data-generating processes studied, and to unordered (multinomial)
+outcomes, which require a vector surrogate and have no single scalar
+effect, are natural next steps. A Bayesian ensemble imputation model, whose posterior
+draws are literal proper imputations, would make the black-box inference
+route more elegant than the bootstrap.
+
+# Data and software
+
+The wine-quality data are from the UCI Machine Learning Repository
+[@cortez2009]. The estimator is provided as a Python package (`sudo`)
+together with a parallel set of R scripts that prototype and validate each
+step; the code and the committed result files behind every table and figure
+are in the project repository at <https://github.com/bgreenwell/sudo>.
+
+# Declaration of AI use
+
+We used Generative AI to assist in writing code and summarizing reference materials. All outputs were carefully reviewed and validated by the authors, who retain full ownership of the final manuscript and accept sole responsibility for any errors.
+
+# References
+
+::: {#refs}
+:::
