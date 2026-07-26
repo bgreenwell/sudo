@@ -237,10 +237,10 @@ large-sample normal form of Rubin's posterior-predictive requirement. @tbl-ladde
 schemes moving coverage from 0.80 (naive) to 0.93 (improper) to 0.96-0.97
 (proper).
 
-It helps to name what $T$ is accounting for. Three things vary from draw to
-draw: the sampling noise in $\hat\theta$ once a completion is fixed (the
-within-draw $\bar W$), the surrogate randomness in $S$, and the uncertainty
-in the imputation model itself. Improper draws discard the last of these.
+$T$ must account for three things that vary from draw to draw: the sampling
+noise in $\hat\theta$ once a completion is fixed (the within-draw $\bar W$),
+the surrogate randomness in $S$, and the uncertainty in the imputation model
+itself. Improper draws discard the last of these.
 The proper draw restores it by sampling
 $\beta^{(b)} \sim N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$, the
 asymptotic sampling distribution of $\hat\beta$. Under standard regularity
@@ -430,7 +430,7 @@ knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
 ```
 
 **Link misspecification.** Generating Gumbel noise but assuming a logistic
-link biases the latent-scale effect badly (+0.77 binary, +0.58 ordinal,
+link biases the latent-scale effect substantially (+0.77 binary, +0.58 ordinal,
 coverage 0); the correct link removes it (bias $<0.005$, nominal coverage),
 and the variance-drift diagnostic flags the wrong link (p $\approx$ 2e-4)
 while clearing the right one (p $\approx$ 0.43).
@@ -563,9 +563,8 @@ diagnostic that can flag, though not confirm, a wrong link.
 The cost, made precise by the propagation analysis, is that the imputation model
 sits outside the orthogonality guarantee: its error reaches the effect at
 first order, through a truncation factor that weakens as the signal
-strengthens. This is a genuine difference from standard DML, where nuisance
-error is second-order, and it should be stated plainly. It is also
-manageable: a well-specified parametric or a partially-linear
+strengthens. This differs from standard DML, where nuisance error is
+second-order. It is also manageable: a well-specified parametric or a partially-linear
 machine-learning imputation model, paired with a full-pipeline bootstrap,
 attains nominal coverage throughout our experiments.
 
