@@ -373,20 +373,38 @@ run-to-run variability and **Mean SE** the standard error it reports;
 Mean SE below SD means intervals that are too short. Replication counts,
 the full data-generating equations, learner and tuning specifications, fold
 and draw counts, and per-cell Monte-Carlo standard errors are given in the
-repository.
+repository. The tables below are generated at render time from those
+committed result files.
+
+```{r}
+#| label: results-setup
+#| include: false
+results_dir <- "../../R/results"
+rd <- function(f) read.csv(file.path(results_dir, f), check.names = FALSE)
+sg <- function(x, d = 3) sprintf(paste0("%+.", d, "f"), x)  # signed
+nn <- function(x, d = 3) sprintf(paste0("%.", d, "f"), x)   # unsigned
+```
 
 **Proper draws are what deliver coverage.** With a simple binary design and
 a correct parametric imputation model, only the proper scheme reaches
 nominal coverage; the naive interval covers 0.80 and the improper 0.93
 (@tbl-ladder).
 
-| Scheme | Bias | SD | Mean SE | Coverage |
-|---|---:|---:|---:|---:|
-| Naive single draw | +0.003 | 0.083 | 0.055 | 0.804 |
-| Improper, $B=25$ | +0.004 | 0.071 | 0.067 | 0.924 |
-| Proper, $B=25$ | +0.005 | 0.072 | 0.076 | 0.970 |
-
-: Inference schemes, binary outcome, $n=5000$, $\theta_0 = 1.5$. {#tbl-ladder}
+```{r}
+#| label: tbl-ladder
+#| echo: false
+#| tbl-cap: "Inference schemes, binary outcome, $n = 5000$, $\\theta_0 = 1.5$, 500 replications. $B$ is the number of surrogate draws."
+s2 <- rd("stage2_summary.csv")
+r <- function(e) s2[s2$estimator == e, ]
+tab <- data.frame(
+  Scheme     = c("Naive single draw", "Improper, $B=25$", "Proper, $B=25$"),
+  Bias       = sg(c(r("naive")$bias, r("improper_B25")$bias, r("proper_B25")$bias)),
+  SD         = nn(c(r("naive")$sd, r("improper_B25")$sd, r("proper_B25")$sd)),
+  `Mean SE`  = nn(c(r("naive")$mean_se, r("improper_B25")$mean_se, r("proper_B25")$mean_se)),
+  Coverage   = nn(c(r("naive")$coverage, r("improper_B25")$coverage, r("proper_B25")$coverage)),
+  check.names = FALSE)
+knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
+```
 
 **Ordinal outcomes.** With a three-category outcome and machine-learning
 adjustment, SUDO is essentially unbiased with valid-to-conservative
@@ -394,12 +412,22 @@ coverage (@tbl-ordinal), a regime for which we are aware of no DML
 competitor. The conservatism is Rubin's rule erring safe under an
 uncongenial imputation model [@meng1994].
 
-| Configuration | Bias | SD | Mean SE | Coverage |
-|---|---:|---:|---:|---:|
-| Parametric, $n=3000$ | +0.002 | 0.077 | 0.083 | 0.976 |
-| Spline + ML nuisances, $n=2000$ | +0.022 | 0.110 | 0.149 | 0.985 |
-
-: Ordinal outcome, $J=3$, $\theta_0 = 1.0$. {#tbl-ordinal}
+```{r}
+#| label: tbl-ordinal
+#| echo: false
+#| tbl-cap: "Ordinal outcome, $J = 3$, $\\theta_0 = 1.0$. Parametric arm 500 replications, spline + ML arm 200."
+s4 <- rd("stage4_summary.csv"); s5 <- rd("stage5_summary.csv")
+p <- s4[s4$estimator == "sudo_ordinal_clm", ]
+q <- s5[s5$estimator == "ordinal_dml_n2000", ]
+tab <- data.frame(
+  Configuration = c("Parametric, $n=3000$", "Spline + ML nuisances, $n=2000$"),
+  Bias      = sg(c(p$bias, q$bias)),
+  SD        = nn(c(p$sd, q$sd)),
+  `Mean SE` = nn(c(p$mean_se, q$mean_se)),
+  Coverage  = nn(c(p$coverage, q$coverage)),
+  check.names = FALSE)
+knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
+```
 
 **Link misspecification.** Generating Gumbel noise but assuming a logistic
 link biases the latent-scale effect badly (+0.77 binary, +0.58 ordinal,
@@ -487,12 +515,25 @@ odds of a wine scoring above any fixed quality level by $\exp(\hat\theta)$,
 about $0.59$ for red ($\hat\theta = -0.53$) and $0.62$ to $0.66$ for white,
 a reduction of roughly a third to 40% in those odds per standard deviation.
 
-| Wine | Overlap $R^2(D\!\sim\!X)$ | Naive read-off | SUDO (linear) | SUDO (spline) |
-|---|---:|---:|---:|---:|
-| Red | 0.44 | $-0.61$ (0.07) | $-0.53$ [$-0.68,-0.38$] | $-0.53$ [$-0.69,-0.36$] |
-| White | 0.12 | $-0.50$ (0.03) | $-0.41$ [$-0.51,-0.31$] | $-0.48$ [$-0.63,-0.34$] |
-
-: Effect of a one-SD increase in volatile acidity on latent wine quality. Standard errors in parentheses, 95% intervals in brackets. {#tbl-wine}
+```{r}
+#| label: tbl-wine
+#| echo: false
+#| tbl-cap: "Effect of a one-SD increase in volatile acidity on latent wine quality. Naive read-off from the linear cumulative-link model (standard error in parentheses); SUDO estimates with 95% intervals in brackets."
+w <- rd("wine_application.csv")
+wrow <- function(which, label) {
+  lin <- w[w$wine == which & w$full_model == "linear", ]
+  spl <- w[w$wine == which & w$full_model == "pl_spline", ]
+  data.frame(
+    Wine = label,
+    `Overlap $R^2(D \\sim X)$` = nn(lin$overlap_r2, 2),
+    `Naive read-off` = sprintf("$%.2f$ (%.2f)", lin$naive_theta, lin$naive_se),
+    `SUDO (linear)`  = sprintf("$%.2f$ [$%.2f,%.2f$]", lin$sudo_theta, lin$ci_lo, lin$ci_hi),
+    `SUDO (spline)`  = sprintf("$%.2f$ [$%.2f,%.2f$]", spl$sudo_theta, spl$ci_lo, spl$ci_hi),
+    check.names = FALSE)
+}
+tab <- rbind(wrow("red", "Red"), wrow("white", "White"))
+knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
+```
 
 # Discussion
 
@@ -543,6 +584,77 @@ are in the open-source (MIT-licensed) project repository at
 # Declaration of AI use
 
 We used Generative AI to assist in writing code and summarizing reference materials. All outputs were carefully reviewed and validated by the authors, who retain full ownership of the final manuscript and accept sole responsibility for any errors.
+
+# Appendix: simulation and application details {#sec-appendix}
+
+Every design draws a latent utility $U = \theta_0 D + g_0(X) + \varepsilon$
+with logistic $\varepsilon$ and reads off the observed category; the designs
+differ in the covariate structure, the cutpoints, and the models fit.
+Covariates are standard normal throughout. Full data-generating code and the
+committed per-cell result files are in `R/` and `R/results/`.
+
+## Data-generating processes
+
+**Ladder (@tbl-ladder), one covariate.** $D \sim \mathrm{Bernoulli}(\Lambda(0.8 X))$
+with $\Lambda$ the logistic CDF, $Y = \mathbf{1}\{1.5\,D + X + \varepsilon > 0\}$;
+$n = 5000$, 500 replications. Full model $\mathrm{glm}(Y \sim D + X)$;
+$B \in \{10, 25, 50\}$ surrogate draws (the table shows $B = 25$).
+
+**Ordinal, parametric (@tbl-ordinal, top), one covariate.** As above but
+$U = 1.0\,D + X + \varepsilon$ cut at $(-1, 1)$ into $J = 3$ categories;
+$n = 3000$, 500 replications. Full model `ordinal::clm`, whose covariance
+covers the thresholds; $B = 25$.
+
+**Machine-learning design, five covariates.** $g_0(X) = X_1^2 + \sin X_2 + 0.5 X_3$,
+$P(D = 1 \mid X) = \Lambda(X_4 + \cos X_5)$, $U = \theta_0 D + g_0(X) + \varepsilon$.
+Binary ($Y = \mathbf{1}\{U > 0\}$) for the black-box and sensitivity studies.
+
+**Ordinal, spline and ML (@tbl-ordinal, bottom), five covariates.** The
+machine-learning covariate structure with $U = 1.0\,D + g_0(X) + \varepsilon$
+cut at $(0, 2)$ into $J = 3$; $n = 2000$, 200 replications. Full model `clm`
+on $D$ and natural-spline bases $\mathrm{ns}(X_k, 4)$; partialling nuisances
+by `mgcv::gam`; $B = 25$.
+
+**Link misspecification.** The machine-learning design and its ordinal
+analogue with extreme-value (Gumbel) $\varepsilon$; the analyst fits logit
+(misspecified) or cloglog (correct); 200 replications.
+
+**Sensitivity ladder (@tbl-sensitivity).** The machine-learning design with
+the oracle index and oracle partialling nuisances, then a known function
+added to one input: the outcome nuisance only (DML-1), both nuisances
+(DML-2), the index in the covariate direction (SUDO-X), or the index in the
+treatment direction by $\kappa$ (SUDO-D). Bias is traced against a common
+latent-scale RMSE; $\theta_0 \in \{1.5, 3\}$, $n = 2000$, 200 replications.
+The fitted SUDO-D slope reproduces $\bar c_1$ (0.669 at $\theta_0 = 1.5$,
+0.861 at $\theta_0 = 3$) to within 0.001.
+
+**Black-box imputation model.** The machine-learning design (binary),
+$\theta_0 \in \{1.5, 3\}$, $n = 2000$. Imputation model: a partially-linear
+backfit $\hat V = \hat\beta D + \hat f(X)$ with $\hat f$ a single-hidden-layer
+neural net (`nnet`, `size = 4`, `decay = 0.3`, five backfitting iterations,
+selected on theta-level MC bias). Standard errors from the full-pipeline
+bootstrap (100 dataset resamples), 100 replications.
+
+**Wine application.** Full model `ordinal::clm` on $D$ and either the raw
+covariates (linear) or $\mathrm{ns}(X_k, 3)$ (spline); partialling nuisances
+$E[S \mid X]$ and $E[D \mid X]$ by `mgcv::gam` (Gaussian for the continuous
+$D$); five-fold cross-fitting; $B = 50$ proper draws; Rubin pooling. Volatile
+acidity is standardized.
+
+## Nuisances, cross-fitting, and draws
+
+Partialling nuisances $\hat\ell(X) = E[S \mid X]$ and $\hat m(X) = E[D \mid X]$
+are `mgcv::gam` throughout, fit with five-fold cross-fitting. Proper draws
+sample the full-model parameters from $N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$
+(thresholds included for `clm`) before each completion. Diagnostic draws use
+an RNG stream independent of the estimation draws.
+
+## Monte-Carlo precision
+
+Coverage is a binomial proportion, so its Monte-Carlo standard error at a
+true 0.95 is about $\sqrt{0.95 \cdot 0.05 / R}$: 0.010 at $R = 500$
+replications, 0.015 at $R = 200$, and 0.022 at $R = 100$. Per-cell bias and
+coverage Monte-Carlo standard errors are in the committed result files.
 
 # References
 
