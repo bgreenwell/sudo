@@ -1,6 +1,7 @@
 # Stage 3g: is the full model's fitted index calibrated against the truth?
 #
-# Motivation: the Neyman-orthogonality guarantee (sudo.md Sec 5) covers the
+# Motivation: the Neyman-orthogonality guarantee (paper appendix, Prop A2)
+# covers the
 # PARTIALLING nuisances E[S|X], E[D|X] — first-order errors there wash out
 # of theta_hat by construction. It does NOT cover the full (imputation)
 # model: errors in V_hat shift where each surrogate draw is centered, and

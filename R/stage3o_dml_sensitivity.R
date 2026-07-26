@@ -25,7 +25,7 @@
 #   SUDO-D oracle index + kappa*D        -> predicted LINEAR, slope cbar_1
 #
 # SUDO-D doubles as an independent measurement of the pass-through
-# constant derived in sudo.md section 6: its fitted slope should equal
+# constant derived in the paper appendix (Prop A3): its fitted slope equals
 # cbar_1 (0.669 at theta=1.5, 0.861 at theta=3). That is the headline
 # assertion — it confirms the theory by a completely separate route from
 # the retro-prediction table.

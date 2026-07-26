@@ -24,6 +24,7 @@ manuscript/paper/.quarto/
 manuscript/paper/*_files/
 manuscript/paper/*.html
 manuscript/paper/*.pdf
+manuscript/paper/tmp/
 manuscript/paper/*.tex
 
 # uv build cache inside python/
@@ -33,6 +34,10 @@ python/.venv/
 *.html
 *.pdf
 *_files/
+
+# ...except the built preprint, so the repo ships a readable PDF. This has to
+# sit after the broad *.pdf rule above, since later patterns win.
+!manuscript/paper/sudo_paper.pdf
 
 # OS
 .DS_Store
@@ -48,14 +53,11 @@ Thumbs.db
 
 # Internal notes and generated summaries (not published)
 /archive/
-/TODO.md
-/TLDR.md
-manuscript/OVERVIEW.md
-manuscript/OVERVIEW copy.md
-manuscript/paper/sudo_paper_review.md
-manuscript/theory_asymptotics.md
-manuscript/theory_state_of_play.md
+# private review memos, wherever they live
+*_review.md
+manuscript/open_problems.md
 R/theory_rubin_check.R
 R/theory_rubin_check_ml.R
 R/results/theory_rubin_check.csv
 R/results/theory_rubin_check_ml.csv
+manuscript/revised_paper_theory_review.md

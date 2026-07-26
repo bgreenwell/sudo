@@ -3,13 +3,41 @@
 Causal inference for binary and ordinal outcomes in the double machine
 learning (DML) partially linear model.
 
-Binary and ordinal outcomes have no home in the DML partially linear model:
-the additive structure lives on a latent scale, and existing tooling covers
-only the binary-logistic case. SUDO completes the discrete outcome to a
-continuous latent-utility surrogate (a truncated inverse-transform draw from
-the assumed link law), runs standard Frisch-Waugh-Lovell partialling-out on
-each completed dataset, and pools B proper multiple-imputation draws with
-Rubin's rules.
+## The problem
+
+Suppose you have run a study with a categorical outcome, a yes/no event or a
+rated response on a 1 to 5 scale, and you want the causal effect of a
+treatment while adjusting flexibly for many covariates.
+
+For a continuous outcome, DML is the standard tool: predict the outcome from
+the covariates, predict the treatment from the covariates, subtract off both
+predictions, and read the treatment effect from what is left. Subtracting
+first is what makes it safe to use flexible machine-learning models for the
+two predictions without biasing the effect.
+
+That machinery assumes a continuous outcome. A categorical outcome obeys the
+additive structure only on a *latent* scale: there is an unobserved
+continuous utility, and you observe which interval it fell into. Existing
+tooling covers the binary-logistic case and nothing else.
+
+## The idea
+
+SUDO fills the latent outcome in. Each observation is completed to a
+continuous *surrogate*, drawn from the assumed error distribution truncated
+to the interval the observed category implies. Ordinary
+Frisch-Waugh-Lovell partialling-out then applies to the completed data.
+
+The completions are multiple imputations, so `B` of them are pooled with
+Rubin's rules. The draws have to be *proper*: the imputation model's own
+parameters are redrawn before each completion, thresholds included. Reusing
+one fitted model across every draw hides its sampling error, and the
+intervals come up short.
+
+One caveat is structural and worth stating up front. The two adjustment
+models are protected by orthogonality, but the imputation model is not: its
+error is baked into the completed data rather than differenced away, so it
+reaches the estimate at first order. The estimator is DML-assisted rather
+than fully orthogonal, and the imputation model has to be right.
 
 - Binary and ordinal outcomes in one framework, not tied to the logit link.
 - Proper multiple-imputation draws for valid coverage, with a built-in link
@@ -61,7 +89,8 @@ writes a summary CSV to `R/results/`.
 
 - `manuscript/paper/` holds the Quarto manuscript (`sudo_paper.qmd`), which
   renders to an arXiv PDF and generates its result tables from `R/results/`.
-- `manuscript/sudo.md` holds the theory notes, ladder-ordered.
+  Its asymptotic-theory appendix carries the pass-through map, the moment
+  properties, the fixed-`B` variance, and the pooled-variance analysis.
 - `AGENTS.md` documents the workflow, layout, and key design decisions.
 
 ## Development

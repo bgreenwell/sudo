@@ -11,7 +11,8 @@ outcome `Y` is completed to a continuous latent-utility *surrogate* (a
 truncated inverse-transform draw from the assumed link law); FWL
 partialling-out runs on each completed dataset; and `B` proper
 multiple-imputation draws are pooled with Rubin's rules. The theory notes are
-in `manuscript/sudo.md`; the paper is in `manuscript/paper/`.
+in the paper's asymptotic-theory appendix; the paper is in
+`manuscript/paper/`.
 
 ## Workflow: R first, then Python
 
@@ -38,8 +39,9 @@ Rscript R/stage6_link_misspec.R        # cloglog truth vs logit analyst, plus di
 Rscript R/wine_application.R           # application: volatile acidity on ordinal wine quality
 Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-variable bound
 
-# Regenerate OVERVIEW.md results tables from R/results/ summaries
-Rscript R/make_overview_tables.R
+# Theory checks behind the paper's asymptotic-theory appendix
+Rscript R/theory_ordinal_passthrough.R # pass-through derivatives, J=2,3,4, three links
+Rscript R/theory_variance_terms.R      # fixed-B variance and the Rubin exactness gap
 
 # Python package (always use uv from python/; no conda or system Python)
 cd python && uv sync && uv run pytest
@@ -64,7 +66,6 @@ sudo/
 │   ├── src/sudo/
 │   └── tests/
 ├── manuscript/
-│   ├── sudo.md      # theory notes (ladder-ordered)
 │   ├── paper/       # Quarto arxiv draft and references.bib
 │   └── data/wine/   # UCI wine-quality data for the application
 ├── AGENTS.md  CLAUDE.md  README.md  LICENSE
@@ -117,8 +118,8 @@ repository root.
   actively harmful if it optimizes the wrong objective (mboost's `cvrisk`
   minimizes deviance, not D-coefficient bias, and is the worst arm): any
   tuning search must select on theta-level MC performance directly.
-- **Truncation pass-through** (`sudo.md` section on propagation). Index error
-  reaches `theta` with factor `c(e) = 1 - dlogis(e)*(mu_+(e) - mu_-(e))`,
+- **Truncation pass-through** (paper appendix, Prop A1). Index error
+  reaches `theta` with factor `c(e) = 1 - dlogis(-e)*(mu_+(e) - mu_-(e))`,
   rising from about 0.31 to 1 as the signal grows, so
   `bias ~= cbar_1*delta_D + X-leak` with `cbar_1 = 0.669` (theta = 1.5) and
   `0.861` (theta = 3) under the stage-3 DGP. The truncation self-corrects

@@ -83,10 +83,11 @@ for (theta0 in c(0.5, 3)) {
       # known limitation: at extreme signal (theta=3) the binomial gam is
       # quasi-separated, its posterior variance explodes, and proper draws
       # go heavy-tailed — the point estimate stays unbiased but the CI
-      # under-covers; documented in sudo.md open problems
+      # under-covers. The deeper cause is the pass-through factor rising
+      # with signal strength (paper appendix, Props A1 and A3).
       cat(sprintf("NOTE theta=%.1f n=%d: coverage %.3f below nominal",
                   theta0, n, s$coverage),
-          "(quasi-separation; see sudo.md open problems)\n")
+          "(strong signal; see the paper's asymptotic-theory appendix)\n")
     }
   }
 }
