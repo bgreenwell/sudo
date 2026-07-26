@@ -36,6 +36,7 @@ Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal, spline clm, gam nuisances (parallel)
 Rscript R/stage6_link_misspec.R        # cloglog truth vs logit analyst, plus diagnostics
 Rscript R/wine_application.R           # application: volatile acidity on ordinal wine quality
+Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-variable bound
 
 # Regenerate OVERVIEW.md results tables from R/results/ summaries
 Rscript R/make_overview_tables.R

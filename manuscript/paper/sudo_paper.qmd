@@ -473,11 +473,11 @@ the other chemistry. A causal reading still rests on strong assumptions:
 that the remaining physicochemical measurements are pre-treatment
 adjustments rather than mediators or proxies of volatile acidity, and that
 winemaking practice has no direct effect on quality beyond the measured
-chemistry, the exclusion restriction the graph encodes. We do not defend
-these assumptions here; the application illustrates feasibility on a
-genuinely ordinal outcome rather than settling a causal question, and we
-leave sensitivity to the adjustment set and to unmeasured confounding for
-applied follow-up.
+chemistry, the exclusion restriction the graph encodes. We do not fully
+defend these assumptions, but we probe the two most in doubt, robustness to
+the adjustment set and to unmeasured confounding, below; the application is
+an illustration on a genuinely ordinal outcome rather than a settled causal
+finding.
 
 ```{mermaid}
 %%| label: fig-dag
@@ -534,6 +534,16 @@ wrow <- function(which, label) {
 tab <- rbind(wrow("red", "Red"), wrow("white", "White"))
 knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
 ```
+
+The sign is robust. Dropping any single covariate from the adjustment set
+leaves the effect in $[-0.67, -0.46]$ for red and $[-0.49, -0.37]$ for
+white, every interval excluding zero, so the estimate does not hinge on one
+adjustment choice. Read through the omitted-variable-bias framework
+[@cinelli2020], an unobserved confounder would have to explain about 16%
+(red) and 11% (white) of the residual variation in both volatile acidity and
+latent quality to bring the effect to zero; weaker confounding leaves it
+negative. These robustness values and the leave-one-out ranges are in the
+committed result files.
 
 # Discussion
 
