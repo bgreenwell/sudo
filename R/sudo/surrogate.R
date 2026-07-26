@@ -18,6 +18,15 @@ rlogis_trunc <- function(loc, lo, hi) {
                   plogis(lo, location = loc)), location = loc)
 }
 
+# truncated standard normal (error law behind the probit link). This is also
+# the Albert-Chib data-augmentation draw, so for a probit imputation model the
+# Gibbs augmentation variable and the SUDO surrogate are the same object.
+rnorm_trunc <- function(loc, lo, hi) {
+  u <- runif(length(loc))
+  qnorm(.clamp_p(u * (pnorm(hi, mean = loc) - pnorm(lo, mean = loc)) +
+                 pnorm(lo, mean = loc)), mean = loc)
+}
+
 # truncated Gumbel (max convention; error law behind the cloglog link)
 # cdf F(x) = exp(-exp(-(x - loc)))
 pgumbel <- function(q, loc = 0) exp(-exp(-(q - loc)))
@@ -45,13 +54,15 @@ rgumbel_min_trunc <- function(loc, lo, hi) {
 # y: integer codes 1..J (binary: use y = Y + 1 with J = 2)
 # v_hat: latent index estimate (link scale), cutpoints: length J+1 incl. +-Inf
 complete_surrogate <- function(y, v_hat, cutpoints = c(-Inf, 0, Inf),
-                               link = c("logit", "cloglog", "cloglog_min")) {
+                               link = c("logit", "probit", "cloglog",
+                                        "cloglog_min")) {
   link <- match.arg(link)
   stopifnot(min(y) >= 1, max(y) <= length(cutpoints) - 1)
   lo <- cutpoints[y]
   hi <- cutpoints[y + 1]
   S <- switch(link,
               logit       = rlogis_trunc(v_hat, lo, hi),
+              probit      = rnorm_trunc(v_hat, lo, hi),
               cloglog     = rgumbel_trunc(v_hat, lo, hi),
               cloglog_min = rgumbel_min_trunc(v_hat, lo, hi))
   # if both cumulative bounds underflow past the clamp the draw can land

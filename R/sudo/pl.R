@@ -16,8 +16,15 @@
 # decay=0.01 config that produced stage 3f's worst bias — the sharpest
 # test of whether PL structure alone rescues it) or "ranger".
 fit_pl_backfit <- function(d, folds, engine = c("nnet", "ranger"),
-                           nn_size = 8, nn_decay = 0.01, n_iter = 5) {
+                           nn_size = 8, nn_decay = 0.01, n_iter = 5,
+                           link = c("logit", "probit")) {
   engine <- match.arg(engine)
+  # the index must be on the same scale as the surrogate's error law, so the
+  # IRLS link has to match complete_surrogate()'s. A logit backfit scored
+  # against a probit completion is out by the usual ~1.8 factor.
+  link <- match.arg(link)
+  linkinv <- if (link == "logit") plogis else pnorm
+  linkfun <- if (link == "logit") qlogis else qnorm
   X <- as.data.frame(d$X)
   n <- nrow(X)
 
@@ -40,22 +47,25 @@ fit_pl_backfit <- function(d, folds, engine = c("nnet", "ranger"),
     Xtr <- X[train_idx, , drop = FALSE]; Dtr <- d$D[train_idx]
     Ytr <- d$Y[train_idx]; Xte <- X[test, , drop = FALSE]; Dte <- d$D[test]
     beta <- 0
-    f_tr <- rep(qlogis(pmin(pmax(mean(Ytr), 1e-3), 1 - 1e-3)),
+    f_tr <- rep(linkfun(pmin(pmax(mean(Ytr), 1e-3), 1 - 1e-3)),
                length(train_idx))
     f_te <- rep(f_tr[1], length(test))
     for (it in seq_len(n_iter)) {
       eta <- beta * Dtr + f_tr
-      mu <- pmin(pmax(plogis(eta), 1e-4), 1 - 1e-4)
-      w <- mu * (1 - mu)
-      z <- eta + (Ytr - mu) / w
+      mu <- pmin(pmax(linkinv(eta), 1e-4), 1 - 1e-4)
+      # general IRLS: w = (dmu/deta)^2 / V(mu), z = eta + (y - mu)/(dmu/deta),
+      # which collapses to the familiar mu(1-mu) form under a logit
+      dm <- if (link == "logit") mu * (1 - mu) else pmax(dnorm(eta), 1e-8)
+      w <- dm^2 / (mu * (1 - mu))
+      z <- eta + (Ytr - mu) / dm
       out <- fit_f(Xtr, z - beta * Dtr, w, Xte)
       f_tr <- out$tr; f_te <- out$te
       beta <- unname(coef(lm(I(z - f_tr) ~ Dtr, weights = w))["Dtr"])
     }
-    plogis(beta * Dte + f_te)
+    linkinv(beta * Dte + f_te)
   }
 
-  to_lp <- function(p) qlogis(pmin(pmax(p, 1e-5), 1 - 1e-5))
+  to_lp <- function(p) linkfun(pmin(pmax(p, 1e-5), 1 - 1e-5))
   p_hat <- numeric(n)
   for (test in folds) p_hat[test] <- backfit_fold(setdiff(seq_len(n), test),
                                                   test)

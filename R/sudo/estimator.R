@@ -95,9 +95,17 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
                         refit_S_nuisance = FALSE, proper_boot = FALSE,
                         recalibrate = FALSE, nn_size = 8, nn_decay = 0.01,
                         pl_engine = "nnet", pl_use_cvrisk = TRUE,
-                        pl_n_iter = 5,
+                        pl_n_iter = 5, link = "logit",
                         fit_l = fit_gam, fit_m = fit_gam_binomial) {
   if (is.character(full_model)) full_model <- match.arg(full_model)
+  # the full model's index and the surrogate's error law must share a scale.
+  # Only pl_backfit is link-aware; the rest fit on the logit scale, and pairing
+  # them with another link silently rescales theta by the link ratio.
+  if (link != "logit" && is.character(full_model) &&
+      !identical(full_model, "pl_backfit")) {
+    stop("full_model '", full_model, "' fits on the logit scale; link = '",
+         link, "' would mismatch the surrogate's error law")
+  }
   X <- as.data.frame(d$X)
   n <- nrow(X)
   folds <- make_folds(n, n_folds)
@@ -108,7 +116,11 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
     to_lp <- bb$to_lp
     lp_hat <- bb$lp_hat
     if (proper_boot && is.null(fit_fold)) proper_boot <- FALSE
-    if (proper_boot) {
+    if (!is.null(bb$draw_lp)) {
+      # the fitter carries its own proper-draw scheme (a Bayesian posterior,
+      # say), so use it rather than manufacturing one by resampling
+      fm <- list(lp_hat = lp_hat, draw_lp = bb$draw_lp)
+    } else if (proper_boot) {
       boot_lp <- function() {
         p <- numeric(n)
         for (test in folds) {
@@ -139,7 +151,8 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
                 pl_backfit = fit_pl_backfit(d, folds, engine = pl_engine,
                                             nn_size = nn_size,
                                             nn_decay = nn_decay,
-                                            n_iter = pl_n_iter),
+                                            n_iter = pl_n_iter,
+                                            link = link),
                 pl_xgboost = fit_pl_xgboost(d, folds),
                 pl_mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk))
     fit_fold <- bb$fit_fold
@@ -176,12 +189,12 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
 
   # outcome nuisance E[S|X] on an initial draw, reused across draws unless
   # refit_S_nuisance
-  S_init <- complete_surrogate(d$Y + 1L, fm$lp_hat, c(-Inf, 0, Inf), "logit")
+  S_init <- complete_surrogate(d$Y + 1L, fm$lp_hat, c(-Inf, 0, Inf), link)
   S_hat <- crossfit(X, S_init, fit_l, folds)
 
   draws <- sapply(seq_len(B), function(b) {
     lp_b <- if (proper) fm$draw_lp() else fm$lp_hat
-    S_b <- complete_surrogate(d$Y + 1L, lp_b, c(-Inf, 0, Inf), "logit")
+    S_b <- complete_surrogate(d$Y + 1L, lp_b, c(-Inf, 0, Inf), link)
     S_hat_b <- if (refit_S_nuisance) crossfit(X, S_b, fit_l, folds) else S_hat
     f <- fwl_theta(S_b - S_hat_b, D_res)
     c(theta = f$theta, var = f$var)
