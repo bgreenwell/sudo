@@ -13,6 +13,7 @@ build/
 
 # Results (large CSVs; track summaries, not raw runs)
 manuscript/results/*.csv
+R/results/*.log
 
 # Vendored third-party replication package (618M of data; lives in Dropbox, not git)
 manuscript/replication_AssessingPlanB/
@@ -52,3 +53,4 @@ Thumbs.db
 manuscript/OVERVIEW.md
 manuscript/OVERVIEW copy.md
 manuscript/paper/sudo_paper_review.md
+manuscript/theory_asymptotics.md
