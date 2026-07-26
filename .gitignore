@@ -54,3 +54,5 @@ manuscript/OVERVIEW.md
 manuscript/OVERVIEW copy.md
 manuscript/paper/sudo_paper_review.md
 manuscript/theory_asymptotics.md
+R/theory_rubin_check.R
+R/results/theory_rubin_check.csv
