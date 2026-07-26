@@ -2,8 +2,19 @@
 title: "Surrogate-Assisted Double Machine Learning: Causal Inference with Binary and Ordinal Outcomes"
 author:
   - name: Brandon M. Greenwell
-    email: greenwell.brandon@gmail.com
-    affiliation: ""
+    email: greenwbm@ucmail.uc.edu
+    affiliations:
+      - name: "University of Cincinnati Carl H. Lindner College of Business"
+        department: Department of OBAIS
+        address: 2906 Woodside Drive
+        city: Cincinnati, OH
+        country: USA
+        postal-code: 45221
+    orcid: 0000-0002-8120-0084
+  - name: Other Authors
+    email: other.authors@email.com
+    affiliations:
+      - name: "University of XYZ"
 authorcols: true
 date: today
 abstract: |
