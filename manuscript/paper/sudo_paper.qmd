@@ -4,16 +4,7 @@ author:
   - name: Brandon M. Greenwell
     email: greenwell.brandon@gmail.com
     affiliation: ""
-  # Placeholder co-authors: fill in names, emails, and affiliations.
-  - name: Second Author
-    email: ""
-    affiliation: ""
-  - name: Third Author
-    email: ""
-    affiliation: ""
-  - name: Fourth Author
-    email: ""
-    affiliation: ""
+authorcols: true
 date: today
 abstract: |
   Double Machine Learning (DML) delivers root-$n$ consistent, asymptotically normal causal estimates by pairing Neyman-orthogonal scores with cross-fitting, but its partially linear model is confined to continuous outcomes. Binary outcomes are served only by a logit-hardwired logistic estimator; ordinal outcomes by no DML method we are aware of. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a categorical response as missing data and fills it in: each observation is completed to a continuous *surrogate* drawn from the assumed error distribution, truncated to the interval the observed category implies, after which ordinary partialling-out applies. The completions are multiple imputations, and pooling them by Rubin's rules is what restores nominal coverage, but only when the draws are *proper*, redrawing the imputation model's parameters (thresholds included) before each draw; naive and improper draws demonstrably under-cover. The method is link-flexible and the surrogate residuals double as a link diagnostic. We further give a closed-form account of how imputation-model error reaches the target: it passes through a truncation factor that rises from about 0.3 to 1 as the signal strengthens, so the imputation model's error is first-order, not the second-order nuisance error of standard DML. With a partially-linear machine-learning imputation model and a full-pipeline bootstrap, the method attains nominal coverage even with black-box learners. We illustrate on wine-quality data, estimating the effect of volatile acidity on an ordinal quality score.
@@ -43,8 +34,9 @@ That machinery is built for a continuous outcome. A binary or ordinal outcome
 obeys the additive structure only on a *latent* scale: there is an
 unobserved continuous utility $U = \theta_0 D + g_0(X) + \varepsilon$, and
 we see only which interval $U$ fell in. Applying the continuous
-partialling-out estimator to the raw labels either changes the estimand or
-is undefined. The available remedy for the binary case is the logistic
+partialling-out estimator to the raw labels still runs, but it changes the
+estimand: it returns a probability-scale contrast, not $\theta_0$. The
+available remedy for the binary case is the logistic
 partially linear model of @liu2021lplr, the DML estimator for a binary
 outcome with an official implementation in the DoubleML software. It is
 effective but narrow: the logit link is built into its orthogonal score, so
@@ -65,16 +57,17 @@ problem into a continuous one on which the FWL recipe runs unchanged. The
 surrogate is a guess, so a single completion is not enough; the completions
 are multiple imputations, pooled by Rubin's rules [@rubin1987]. Getting
 that pooling right, imputing from the imputation model's *posterior
-predictive* rather than a plug-in, is the crux of valid inference and, we
-find, where a naive application fails.
+predictive* rather than a plug-in, is what separates near-nominal coverage
+from clear under-coverage in every design we study, and is where a naive
+application fails.
 
 **Contributions.**
 
 1. A DML estimator for binary and ordinal outcomes in one framework, not
    tied to the logit link, with a built-in link diagnostic.
-2. The finding that, across the designs we study, proper
-   multiple-imputation draws are both necessary and sufficient for nominal
-   coverage, quantified against naive and improper alternatives.
+2. The finding that only the proper multiple-imputation draw scheme attained
+   nominal coverage in the designs we study, quantified against naive and
+   improper alternatives.
 3. A closed-form analysis of how imputation-model error propagates to the
    effect, revealing a *first-order* sensitivity absent from standard DML,
    confirmed by a direct perturbation experiment.
@@ -87,8 +80,10 @@ find, where a naive application fails.
 
 Let $D$ be a treatment, $X \in \mathbb{R}^p$ covariates, and $Y$ a
 categorical outcome: binary, $Y = \mathbf{1}\{U > 0\}$, or ordinal,
-$Y = j \iff c_{j-1} < U \le c_j$ for thresholds
-$-\infty = c_0 < c_1 < \dots < c_{J-1} < c_J = \infty$. The latent utility
+$Y = j \iff \kappa_{j-1} < U \le \kappa_j$ for thresholds
+$-\infty = \kappa_0 < \kappa_1 < \dots < \kappa_{J-1} < \kappa_J = \infty$
+(we write $\kappa$ rather than $c$ to keep the thresholds distinct from the
+pass-through factor $c(\cdot)$ of @sec-theory). The latent utility
 follows a partially linear model
 
 $$U = \theta_0 D + g_0(X) + \varepsilon, \qquad \varepsilon \sim F$$ {#eq-latent}
@@ -149,7 +144,7 @@ The whole method reduces to one move. Fit an imputation model of the
 outcome on $(D, X)$ to obtain an estimated latent index $\hat V_i$; for each
 observation draw a surrogate $S_i$ from the assumed distribution $F$, located at $\hat V_i$ and truncated to the interval the observed category implies:
 $(0,\infty)$ if $Y_i = 1$, $(-\infty, 0]$ if $Y_i = 0$, or
-$(\hat c_{Y_i-1}, \hat c_{Y_i}]$ in the ordinal case. When the imputation model is correct and its parameters known, the
+$(\hat\kappa_{Y_i-1}, \hat\kappa_{Y_i}]$ in the ordinal case. When the imputation model is correct and its parameters known, the
 surrogate is drawn from the conditional law of $U$ given $(D, X)$, so
 $E[S \mid D, X] = E[U \mid D, X]$ (Theorem 1 of @cheng2021) and the
 completed data satisfy
@@ -213,7 +208,7 @@ $$\hat\theta = \frac{\sum_i (S_i - \hat\ell(X_i))(D_i - \hat m(X_i))}
 The $\hat\ell$ regression uses $X$ only: the index carried $D$'s signal
 into $S$, and partialling on $X$ alone strips it back out so the residual
 regression isolates $\theta_0$. The score
-$\psi = (S - \ell(X) - \theta(D - m(X)))(D - m(X))$ is Neyman-orthogonal in
+$\varphi = (S - \ell(X) - \theta(D - m(X)))(D - m(X))$ is Neyman-orthogonal in
 $(\ell, m)$: its derivatives in both nuisance directions vanish by the
 tower property, so first-order error in $\hat\ell$ or $\hat m$ does not bias
 $\hat\theta$. This protection covers the two *adjustment*
@@ -271,8 +266,20 @@ adjustment nuisances, sits outside the orthogonality guarantee, so the
 method is DML-assisted rather than fully orthogonal, and its overall score
 is not insensitive to every estimated component.
 
-Conditional on the cross-fitting folds, $\hat V$ is a deterministic
-function of $(D, X)$, while $Y \mid D, X$ is generated by the truth. Since
+The argument below needs the fitted index to be free of the observation's
+own outcome, and two routes deliver that. A *flexible* imputation model is
+cross-fit, so $\hat V_i$ is an out-of-fold prediction and is independent of
+$Y_i$ given $(D, X)$. A *parametric* one is fit once on all the data, where
+$\hat V_i$ depends on $Y_i$ only at order $1/n$, which is asymptotically
+negligible. Cross-fitting a parametric imputation model is not merely
+unnecessary but harmful: the per-fold index noise inflates the between-draw
+variance, and we measured coverage rising to 1.00 with the mean standard
+error at 2.3 times the true standard deviation. Accordingly the binary
+machine-learning design below uses a cross-fit `gam` imputation model, while
+the ordinal designs and the wine application fit `clm` once.
+
+Either way $\hat V$ is fixed with respect to the completion, while
+$Y \mid D, X$ is generated by the truth. Since
 $S$ is $\hat V$ plus truncated noise,
 
 $$E[S \mid D, X] = \psi(\hat V, \eta), \quad
@@ -283,10 +290,20 @@ draw is exact, $\psi(e, e) = e$ (recovering Theorem 1 of @cheng2021),
 but index error passes through with a factor strictly below one,
 
 $$c(e) = \left.\frac{\partial \psi}{\partial v}\right|_{v=e}
-= 1 - f(e)\,\bigl(\mu_+(e) - \mu_-(e)\bigr), \qquad f = F'$$ {#eq-ce}
+= 1 - f(-e)\,\bigl(\mu_+(e) - \mu_-(e)\bigr), \qquad f = F'$$ {#eq-ce}
 
 Under a logistic link $c$ rises from $0.31$ at $e = 0$ to $1$ in the tails
-(@fig-passthrough).
+(@fig-passthrough); the value at the origin is exactly $1 - \log 2$, since
+for the logit $c(e) = 1 - H(F(e))$ with $H$ the binary entropy in nats.
+The density in @eq-ce is evaluated at $-e$, which matters for an asymmetric
+$F$ such as the extreme-value link; writing $f(e)$ is a shorthand valid only
+when $F$ is symmetric. @sec-theory gives the general-$J$ form of both
+@eq-ess and @eq-ce, where the ordinal thresholds contribute their own
+derivative block. For the well-placed partitions studied here, adding
+categories lowers the pass-through at $e = 0$: from $0.307$ for binary to
+$0.157$ and $0.090$ for the displayed three- and four-category
+configurations. Category count alone is not monotone, however; widely spaced
+thresholds can instead drive the pass-through toward one.
 
 ```{r}
 #| label: fig-passthrough
@@ -300,11 +317,11 @@ ce <- function(e) 1 - dlogis(e) * (mu_plus(e) - mu_minus(e))
 e <- seq(0, 6, by = 0.05)
 cval <- sapply(e, ce)
 par(mar = c(4, 4, 1, 1), cex = 0.9)
-plot(e, cval, type = "l", lwd = 2, ylim = c(0, 1),
+plot(e, cval, type = "l", lwd = 2, ylim = c(0, 1), las = 1,
      xlab = "index level e", ylab = expression("pass-through factor " * c(e)))
 abline(h = 1, lty = 3, col = "grey60")
 points(0, ce(0), pch = 19)
-text(0.15, ce(0), sprintf("%.2f", ce(0)), pos = 4, cex = 0.9)
+text(0.1, ce(0) + 0.1, sprintf("%.2f", ce(0)), pos = 4, cex = 0.9)
 ```
 
 Linearizing $\psi$ around the truth, the bias of $\hat\theta$ is
@@ -324,8 +341,13 @@ $\hat V$; the leak is merely small in practice. Third, in the sharpest
 contrast with standard DML, the imputation model's error enters
 $\hat\theta$ *linearly*. In DML the outcome is observed and nuisance error
 enters only through a *product* of two errors [@chernozhukov2018;
-@robinson1988]: get either nuisance right and the bias vanishes. SUDO adds
-a third model whose treatment-direction error is unprotected and
+@robinson1988]: writing $\ell = \ell_0 + a$ and $m = m_0 + b$ for the errors
+in the two adjustment models, the remaining bias is
+$E[ab] - \theta_0 E[b^2]$, which is second order in the pair. Getting the
+treatment model right ($b = 0$) removes it entirely; getting only the
+outcome model right does not. The score is Neyman-orthogonal, first-order
+insensitive to nuisance error, rather than doubly robust in the usual sense.
+SUDO adds a third model whose treatment-direction error is unprotected and
 first-order, damped only by $\bar c_1 < 1$. @tbl-sensitivity confirms this
 numerically: a perturbation applied to the outcome nuisance in DML leaves
 the estimate unbiased at every level, whereas the same-sized index
@@ -336,8 +358,10 @@ perturbation in SUDO produces a linear bias with slope exactly $\bar c_1$.
 @eq-ess makes imputation-model quality matter more than
 adjustment-model quality, the reverse of the usual DML intuition. A
 well-specified parametric imputation model (logistic or cumulative-link)
-gives valid inference directly, since its covariance supplies the proper
-draw. Two obstacles arise with a black-box learner: it can carry a
+needs no extra machinery, since its covariance supplies the proper draw
+directly. Such draws propagate parameter uncertainty and attain near-nominal
+coverage in our parametric experiments; @sec-theory characterizes the small
+Rubin-variance discrepancy that remains. Two obstacles arise with a black-box learner: it can carry a
 treatment-direction error $\delta_D$ (a bias problem), and it has no
 covariance matrix from which to draw (an inference problem).
 
@@ -355,7 +379,18 @@ variance component; the bootstrap simply obtains it by refitting when no
 covariance is available to sample from. It has to wrap the *whole* pipeline,
 because a within-fold refit of the model alone under-propagates that same
 imputation-model variability. Together these restore nominal coverage
-with a black-box imputation model (@sec-sims). A Bayesian ensemble, whose
+with a black-box imputation model (@sec-sims).
+
+We report the bootstrap as an empirical result rather than a theorem. What
+would be needed is asymptotic linearity of the imputation-model estimator
+uniformly over resamples, the @sec-theory rate conditions holding
+conditionally on the data, fold assignment redrawn within each resample, and
+differentiability of the generated-outcome map. The first three are close to
+available: @tang2024 give conditions for bootstrap consistency of
+asymptotically linear estimators with machine-learned nuisances, and
+@lin2026 establish bootstrap validity for general DML estimators under
+exchangeably weighted resampling, under the same conditions that make DML
+itself valid. Neither covers the generated-outcome step, which is the gap. A Bayesian ensemble, whose
 posterior draws are complete alternative imputation models, would supply
 proper draws directly and is a natural extension. A forest's out-of-bag or
 infinitesimal-jackknife variance [@wager2014] is not such a route: it
@@ -409,8 +444,12 @@ knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
 **Ordinal outcomes.** With a three-category outcome and machine-learning
 adjustment, SUDO is essentially unbiased with valid-to-conservative
 coverage (@tbl-ordinal), a regime for which we are aware of no DML
-competitor. The conservatism is Rubin's rule erring safe under an
-uncongenial imputation model [@meng1994].
+competitor. We do not have an explanation for the conservatism. Rubin's
+variance is guaranteed to err safe only under conditions we have not
+verified here (a valid imputation model together with a self-efficient
+complete-data analysis), and under uncongeniality it can be biased in
+either direction [@meng1994; @xie2017]. The over-coverage is a property of
+these designs, not a general guarantee.
 
 ```{r}
 #| label: tbl-ordinal
@@ -542,8 +581,13 @@ adjustment choice. Read through the omitted-variable-bias framework
 [@cinelli2020], an unobserved confounder would have to explain about 16%
 (red) and 11% (white) of the residual variation in both volatile acidity and
 latent quality to bring the effect to zero; weaker confounding leaves it
-negative. These robustness values and the leave-one-out ranges are in the
-committed result files.
+negative. We report these robustness values as a heuristic calibration
+rather than a formal bound: the Cinelli-Hazlett formula is derived for
+omitted-variable bias in linear regression with an observed outcome, and we
+are applying it to a pooled, surrogate-completed estimate whose standard
+error comes from Rubin's rules. Its validity in that setting has not been
+established. These values and the leave-one-out ranges are in the committed
+result files.
 
 # Discussion
 
@@ -568,13 +612,15 @@ second-order. It is also manageable: a well-specified parametric or a partially-
 machine-learning imputation model, paired with a full-pipeline bootstrap,
 attains nominal coverage throughout our experiments.
 
-Several problems remain open. For the proper-draw validity and the
-treatment-in-imputation-model step we give simulation evidence here; formal
-proofs of both are still to be established, and until then SUDO is best read
-as a simulation-supported estimator rather than a fully proven inferential
-procedure. Such a result would state the imputation-model, nuisance-rate,
-cross-fitting, and overlap conditions, the influence function, and the
-regime for $B$. Extending the black-box results beyond the two
+Several problems remain open, and we are explicit about what @sec-theory does
+and does not settle. Its results are derivations with numerical
+verification rather than fully discharged theorems: the regularity conditions
+are stated but not minimized, the treatment-in-imputation-model step still
+rests on simulation evidence, and the appendix covers only the parametric
+imputation model fit once on all the data, not the cross-fit flexible regime
+the machine-learning designs use. SUDO is therefore best read as a
+simulation-supported estimator with a worked-out first-order theory, not a
+fully proven inferential procedure. Extending the black-box results beyond the two
 data-generating processes studied, and to unordered (multinomial)
 outcomes, which require a vector surrogate and have no single scalar
 effect, are natural next steps. A Bayesian ensemble imputation model, whose posterior
@@ -593,6 +639,317 @@ are in the open-source (MIT-licensed) project repository at
 # Declaration of AI use
 
 We used Generative AI to assist in writing code and summarizing reference materials. All outputs were carefully reviewed and validated by the authors, who retain full ownership of the final manuscript and accept sole responsibility for any errors.
+
+# Appendix: asymptotic theory {#sec-theory}
+
+This appendix collects the theory behind the claims in the body: the
+pass-through map and its derivatives for general $J$, the moment properties
+that separate the adjustment nuisances from the imputation model, the
+asymptotic distribution of the pooled estimate at fixed $B$, and the
+resulting account of Rubin's variance.
+
+A word on status. We label the results propositions and theorems for ease of
+reference, but they are derivations with numerical verification rather than
+fully discharged theorems: proofs are given as sketches and the regularity
+conditions are stated without being minimized. Every closed-form expression
+below is checked numerically in the project repository, against numerical
+differentiation for the pass-through derivatives and against Monte Carlo for
+the variance decomposition, and we flag in place the two points where the
+argument is incomplete.
+
+## Notation and assumptions
+
+The imputation model is a parametric family $P_\beta(Y \mid D, X)$ with
+latent index $\eta(D, X; \beta)$; for a GLM with known cutpoints
+$\eta = x'\beta$. When the cutpoints are estimated, as in a cumulative-link
+model, we collect them with the index coefficients into a single parameter
+$\beta = (\beta_\eta, \kappa)$. The thresholds are components of $\beta$ but
+not of $\eta$: they enter only through the truncation interval, a
+distinction that matters in @eq-gblocks below. Write $\hat\beta$ for the
+maximum-likelihood estimate, $m_0(X) = E[D \mid X]$, $R = D - m_0(X)$, and
+$J_\theta = E[R^2]$.
+
+Given $\beta$, a completion is $S(W; \beta) = \eta(D, X; \beta) + \xi$ with
+$\xi$ drawn from $F$ truncated to the interval $Y$ implies. The draw noise
+splits into a data-measurable part and a pure Monte-Carlo part,
+
+$$\xi_i^{(b)} = e_i + u_i^{(b)}, \qquad e_i = E[\xi_i \mid W_i; \beta],
+\qquad E[u_i^{(b)} \mid W_i] = 0 ,$$ {#eq-split}
+
+and this split is what makes the fixed-$B$ bookkeeping come out right.
+Note that $\xi$ is *not* mean-zero given $W$: the truncation is selected by
+the observed $Y$. Only after averaging over $Y \mid D, X$ at the true model
+does the mean vanish, because composing $Y \sim P_{\beta_0}$ with the
+matching truncated draw reproduces the untruncated law, so
+$\xi \mid D, X \sim F$ exactly. Define
+
+$$\sigma_e^2 = E[e^2 R^2], \quad
+\sigma_u^2 = E[\operatorname{Var}(\xi \mid W) R^2], \quad
+\sigma_\varphi^2 = E[\xi^2 R^2] = \sigma_e^2 + \sigma_u^2 .$$
+
+We assume throughout: **(A1)** the latent model @eq-latent with
+selection-on-observables, a constant latent-scale effect, error law $F$, and
+overlap ($J_\theta > 0$, $\operatorname{Var}(D \mid X)$ bounded away from 0
+and $\infty$); **(A2)** a correctly specified, regular imputation model, so
+$\eta(D, X; \beta_0) = \theta_0 D + g_0(X)$ and
+$\sqrt n(\hat\beta - \beta_0) \to_d N(0, \Sigma_\beta)$ with
+$\Sigma_\beta = I(\beta_0)^{-1}$ the inverse per-observation information and
+influence function $\operatorname{IF}_\beta = I(\beta_0)^{-1} s_\beta(W)$;
+**(A3)** cross-fitted adjustment nuisances consistent in $L_2$ with the
+product rate
+$\lVert \hat\ell - \ell_0 \rVert_2 \lVert \hat m - m_0 \rVert_2 = o_p(n^{-1/2})$,
+each $o_p(n^{-1/4})$; **(A4)** finite fourth moments and dominated
+differentiability of $\beta \mapsto E[\varphi]$ at $\beta_0$; and **(A5)**
+proper draws $\beta^{(b)} \sim N(\hat\beta, \widehat\Sigma_\beta / n)$, so
+that $\beta^{(b)} = \hat\beta + n^{-1/2} Z_b$ with
+$Z_b \mid \text{data} \sim N(0, \Sigma_\beta)$.
+
+The scaling in (A5) is worth stating explicitly, since $\Sigma_\beta$ is the
+limit of $n \widehat{\operatorname{Cov}}(\hat\beta)$ rather than of
+$\widehat{\operatorname{Cov}}(\hat\beta)$ itself; drawing with the
+unnormalized matrix would inject variance that does not vanish with $n$.
+
+**Scope.** (A2) describes the parametric case: one regular maximum-likelihood
+fit on all the data, with a covariance to draw from. That is what the ordinal
+designs and the wine application use, and it is the setting the results below
+cover. It does not describe a cross-fit flexible imputation model, whose
+index is assembled from per-fold fits with no single $\hat\beta$ and no
+covariance of the required form. The binary machine-learning design and the
+black-box program are therefore outside this appendix, and we report them
+empirically rather than claiming the theory extends to them.
+
+## The pass-through map for general $J$
+
+For an outcome in category $j$ the draw truncates $\xi$ to $(a_j, b_j]$ with
+$a_j = \kappa_{j-1} - v$ and $b_j = \kappa_j - v$ at index $v$. Write
+$\mu_j(v, \kappa) = E[\xi \mid a_j < \xi \le b_j]$ and
+$p_j = F(\kappa^0_j - e) - F(\kappa^0_{j-1} - e)$ for the true category
+probability at true index $e$. Averaging over $Y \mid D, X$ gives the
+general form of @eq-ess,
+
+$$\psi(v, \kappa; e, \kappa^0) = v + \sum_{j=1}^{J} p_j\, \mu_j(v, \kappa).$$ {#eq-psiord}
+
+**Proposition A1.** *At $(v, \kappa) = (e, \kappa^0)$, writing
+$t_k = \kappa^0_k - e$,*
+
+$$c(e) = \frac{\partial \psi}{\partial v}
+= 1 - \sum_{k=1}^{J-1} f(t_k)\bigl[\mu_{k+1}(e) - \mu_k(e)\bigr],
+\qquad
+\frac{\partial \psi}{\partial \kappa_k} = f(t_k)\bigl[\mu_{k+1}(e) - \mu_k(e)\bigr].$$ {#eq-gblocks}
+
+*Consequently $c(e) = 1 - \sum_k \partial \psi / \partial \kappa_k$: the
+index derivative and the threshold derivatives are the same kernel.*
+
+*Sketch.* Differentiate @eq-psiord. Both truncation limits move with slope
+$-1$ in $v$, and the derivative of a truncated mean with respect to its
+upper limit is $f(b)(b - \mu)/P$, with the analogous expression at the lower
+limit. Evaluated at the truth the truncation probability $P_j$ equals $p_j$,
+so the weights in @eq-psiord cancel the denominators and the surviving terms
+regroup by threshold. The final identity follows because $\mu_j$ depends on
+$(v, \kappa)$ only through $\kappa - v$, so shifting the index is the same
+as shifting every threshold the other way. $\square$
+
+Three consequences. First, the binary case is $J = 2$ with $\kappa_1 = 0$,
+where the sum collapses to @eq-ce. Second, the threshold derivatives are
+generally nonzero, so for an ordinal outcome both $\Sigma_\beta$ and the
+gradient $G$ of the next section carry a threshold block. This is the formal
+reason the ordinal full model must be fit with a routine whose covariance
+covers the thresholds (`ordinal::clm`) rather than one whose does not
+(`mgcv::ocat`). Third, what governs the pass-through is how much the
+categorization tells you about $U$, which is *not* the same as the number of
+categories. Refining a partition with well-placed thresholds does lower $c$
+(at $e = 0$ under a logit, from $0.307$ binary to $0.157$ and $0.090$ for the
+three- and four-category configurations of @sec-numverify), but widening the
+same three-category partition reverses this completely, taking $c(0)$ above
+the binary value and on toward 1. The reason is visible in @eq-gblocks: a
+category spanning many error standard deviations has a nearly unbounded
+truncation interval, its $\mu_j$ barely moves with the index, and the
+self-correction switches off. We therefore claim no monotonicity in $J$. The
+useful statement is that $c \to 1$ as the observed category stops
+constraining $U$, which is the same mechanism that drives $c \to 1$ at strong
+signal. For the binary logit there is a closed form,
+$c(e) = 1 - H(F(e))$ with $H$ the binary entropy in nats, giving
+$1 - \log 2 = 0.307$.
+
+## Moment properties
+
+**Proposition A2.** *Under (A1)-(A2), $E[\varphi] = 0$ at the truth and the
+moment is Neyman-orthogonal in the adjustment nuisances,
+$\partial_\ell E[\varphi] = \partial_m E[\varphi] = 0$. It is not orthogonal
+in $\beta$: $\partial_\beta E[\varphi] = G$ with blocks*
+
+$$G_{\beta_\eta} = E\bigl[c(\eta_0)\, \partial_{\beta_\eta} \eta\, R\bigr],
+\qquad
+G_{\kappa_k} = E\bigl[f(\kappa^0_k - \eta_0)\,(\mu_{k+1} - \mu_k)\, R\bigr].$$
+
+*Sketch.* At the truth $S - \ell_0 - \theta_0 R = \xi$, and averaging over
+$Y \mid D, X$ makes $\xi \mid D, X \sim F$, so $E[\varphi] = E[\xi R] = 0$.
+The mean-zero statement holds only after that averaging; given $(W, \beta)$
+the draw has mean $e \ne 0$. The nuisance derivatives vanish by the tower
+property. The $\beta$ derivative is @eq-gblocks composed with
+$\partial_\beta \eta$. $\square$
+
+Because any function of $X$ is annihilated by $R$, profiling $\ell$ out of
+the moment leaves $G$ unchanged. That covers either implementation: refitting
+$\hat\ell$ on every completion, or fitting it once from a plug-in completion
+and holding it fixed, which is what the estimator actually does (see the
+appendix section on nuisances and draws). Proposition A2 is the formal
+content of the statement in the body that the imputation model sits outside
+the orthogonality guarantee.
+
+## Asymptotic distribution at fixed $B$
+
+**Theorem A1.** *Under (A1)-(A5), with
+$\bar\theta = B^{-1}\sum_b \hat\theta^{(b)}$,*
+
+$$\sqrt n(\bar\theta - \theta_0) \to_d N(0, V_B), \qquad
+V_B = J_\theta^{-2}\Bigl[\sigma_e^2 + G'\Sigma_\beta G + 2G'C
+  + \frac{G'\Sigma_\beta G + \sigma_u^2}{B}\Bigr],$$ {#eq-vb}
+
+*where $C = \operatorname{Cov}(eR, \operatorname{IF}_\beta)$.*
+
+*Sketch.* The $Z$-estimator expansion gives
+$\sqrt n(\hat\theta - \theta_0) = J_\theta^{-1}\sqrt n M_n(\theta_0, \cdot) + o_p(1)$,
+the sign following from $\partial_\theta E[\varphi] = -J_\theta$. Expanding
+around $(\beta_0, \ell_0, m_0)$, the adjustment-nuisance terms are $o_p(1)$
+by Proposition A2 plus cross-fitting plus the (A3) product rate, as in
+@chernozhukov2018. The $\beta$ term is
+$G'\sqrt n(\beta^{(b)} - \beta_0) + o_p(1)$, and
+$\beta^{(b)} - \beta_0 = (\hat\beta - \beta_0) + n^{-1/2} Z_b$ by (A5).
+Applying @eq-split separates the data-measurable score $e_i R_i$ from the
+draw noise; averaging over $b$ leaves parameter-draw and surrogate-draw
+terms with conditional variances $\Sigma_\beta / B$ and $\sigma_u^2 / B$.
+$\square$
+
+Two features of @eq-vb deserve emphasis. First, this is not the
+single-completion result plus an $O(1/B)$ correction: the leading term
+itself depends on $B$. A single completion carries the full sandwich
+$\sigma_e^2 + \sigma_u^2$ *and* twice the parameter contribution, once from
+$\hat\beta$'s own sampling error and once from the single draw around it,
+which is exactly what Rubin's $(1 + 1/B)$ factor exists to undo. As
+$B \to \infty$ the draw noise averages away and the leading term is
+$\sigma_e^2$, not $\sigma_e^2 + \sigma_u^2$. Second, the cross term $2G'C$
+is not sign-restricted, since $\operatorname{IF}_\beta$ and the moment are
+built from the same data. So $V_B$ is not the DML sandwich plus a
+nonnegative imputation penalty; it is the sandwich with the draw noise
+removed by pooling and $G'\Sigma_\beta G + 2G'C$ added.
+
+## The pooled variance
+
+Rubin's total is $T = \bar W + (1 + 1/B) B_{\!*}$. The two pieces behave
+differently, and the distinction matters. $\bar W$ averages a sandwich
+estimate over $n$ observations, so $n\bar W \to_p J_\theta^{-2}(\sigma_e^2 + \sigma_u^2)$.
+$B_{\!*}$ is the sample variance of $B$ draws. Writing
+$V_{\mathrm{draw}} = G'\Sigma_\beta G + \sigma_u^2$ for the per-draw
+variance, @eq-vb gives
+$$n B_{\!*} \to_d J_\theta^{-2}\, V_{\mathrm{draw}}\,\frac{\chi^2_{B-1}}{B-1}
+\qquad (n \to \infty,\ B \text{ fixed}),$$ {#eq-bstar}
+which is *not* a probability limit: at fixed $B$ the between-draw term keeps
+sample-variance randomness however large $n$ becomes. It is conditionally
+unbiased for $J_\theta^{-2}V_{\mathrm{draw}}$, which is what lets the
+comparison below be stated in expectation.
+
+Write $E_\Delta[\cdot] = E[\cdot \mid W_1, \dots, W_n]$ for the expectation
+over the imputation draws with the data held fixed, so that $E_\Delta[T]$ is
+still a random variable through the data.
+
+**Theorem A2.** *Under (A1)-(A5), for fixed $B$,*
+$$n\,E_\Delta[T] - V_B \;\to_p\; 2 J_\theta^{-2}\bigl(\sigma_u^2 - G'C\bigr),$$
+*with $n\,T$ itself converging in distribution, not in probability, by
+@eq-bstar. Taking expectations over the data as well gives the same limit for
+the unconditional $n\,E[T] - V_B$, which is the form the Monte-Carlo check
+below estimates, since each replication redraws both the sample and the
+imputations. As $B \to \infty$ the randomness in $B_{\!*}$ averages away and
+the statement strengthens to a probability limit for $T$ itself,*
+$$n\,T - V_\infty \;\to_p\; 2 J_\theta^{-2}\bigl(\sigma_u^2 - G'C\bigr),
+\qquad V_\infty = J_\theta^{-2}\bigl(\sigma_e^2 + G'\Sigma_\beta G + 2G'C\bigr).$$
+*Either way the $1/B$ terms cancel, so the discrepancy is free of $B$, and
+Rubin's variance is asymptotically exact if and only if $G'C = \sigma_u^2$,
+conservative when $G'C < \sigma_u^2$, and anti-conservative when
+$G'C > \sigma_u^2$.*
+
+**Remark (what fixed $B$ costs).** With $B$ fixed, no amount of data removes
+the $\chi^2_{B-1}$ fluctuation in the reported variance. This establishes
+that *some* non-normal reference distribution is necessary at any $n$, not
+merely as a small-sample refinement. It does not by itself establish that the
+Barnard-Rubin degrees of freedom are the right one: that formula is derived
+for a complete-data analysis whose within- and between-imputation components
+are independent, whereas here $\bar W$ and $B_{\!*}$ are built from the same
+draws and the same $\hat\beta$. Establishing the required dependence
+structure is open. The predicted spread is large and is confirmed
+numerically in @sec-numverify.
+
+Neither direction is automatic, and we do not find exactness. On a
+deliberately congenial testbed that isolates the pooling from every other
+source of error (a correctly specified logistic imputation model, continuous
+treatment so both adjustment nuisances are exactly linear), all six
+quantities are available in closed form:
+
+| $\theta_0$ | $\sigma_e^2$ | $\sigma_u^2$ | $G'\Sigma_\beta G$ | $G'C$ | $\sigma_u^2 - G'C$ | $T/V$ at $B = 20$ |
+|---|---|---|---|---|---|---|
+| 1 | 1.269 | 2.021 | 4.077 | 1.954 | $+0.067$ | 1.014 |
+| 3 | 0.580 | 2.710 | 41.414 | 3.094 | $-0.384$ | 0.985 |
+
+The sign of the discrepancy flips with signal strength: on average $T$
+overstates the sampling variance by about 1.4% at $\theta_0 = 1$ and
+understates it by about 1.5% at $\theta_0 = 3$. The $T/V$ column compares
+$n\,E[T]$ with $V_B$, which is the quantity Theorem A2 governs at fixed $B$;
+individual replications scatter around it according to @eq-bstar. Both
+discrepancies are asymptotic rather than finite-sample effects; they persist
+at $n = 20{,}000$ and, being free of $B$, do not shrink as $B$ grows. The
+mechanism is visible in the table. As the signal grows the
+observed $Y$ carries less information beyond the index, so $\sigma_e^2$
+falls while $\sigma_u^2$ and $G'C$ rise, and $G'C$ overtakes $\sigma_u^2$.
+This is a more precise account of why inference is hardest at strong effect
+sizes than the informal argument in the body, and it corrects a natural but
+mistaken reading: $c \to 1$ is the regime in which $\psi$ is *closest* to
+the identity, so the linearization is at its most accurate there, and cannot
+be what degrades.
+
+The practical import is small: a 1.5% error in a variance is roughly 0.7% in
+a standard error, well inside the Monte-Carlo error of the coverage figures
+in @sec-sims. The theoretical import is that "proper draws plus Rubin's rules
+are exact here" is not a claim we can make. @sec-numverify reports the
+Monte-Carlo check of @eq-vb term by term.
+
+**Corollary (improper draws under-cover).** If $\beta^{(b)} \equiv \hat\beta$,
+the between-draw term loses the parameter contribution entirely, so $B_{\!*}$
+is conditionally unbiased for $J_\theta^{-2}\sigma_u^2$ alone and $n\,E[T]$
+falls short of $V_B$.
+The deficit is dominated by the imputation channel $G'\Sigma_\beta G$
+whenever $G \ne 0$ and the signal is not weak, though it is not exactly that
+quantity, since the cross term and the draw noise also enter. This is the
+0.93 versus 0.97 coverage gap in @tbl-ladder.
+
+## Bias under a misspecified imputation model
+
+**Proposition A3.** *Drop the correct-specification half of (A2) and suppose
+$\hat\beta \to_p \beta_*$. Restrict to binary $D$ and to a pure
+treatment-coefficient error, so that the index error
+$\eta(\cdot; \beta_*) - \eta_0$ equals $\delta_D$ in the treated arm and $0$
+in the control arm. Then*
+$$\bar\theta - \theta_0 = \bar c_1 \delta_D
+  + \textit{(covariate-direction leak)} + o_p(1), \qquad
+\bar c_1 = \frac{E[w\, c(\theta_0 + g_0)]}{E[w]}, \quad w = \operatorname{Var}(D \mid X).$$
+
+*Sketch.* Linearize
+$E[S \mid D, X; \beta_*] \approx \eta_0 + c(\eta_0)(\eta(\cdot; \beta_*) - \eta_0)$
+and push through $J_\theta^{-1}E[\,\cdot\,R]$. Conditioning on $X$ with
+binary $D$, the moment weights the treated arm by $w$ and the control arm by
+$-w$; the control-arm error is zero by assumption, so only
+$c(\theta_0 + g_0)$ survives, and $J_\theta = E[w]$ supplies the
+denominator. $\square$
+
+Both restrictions matter. The displayed $\bar c_1$ evaluates $c$ on the
+treated arm only, which is correct precisely because the control-arm error
+was set to zero; a general perturbation weights both arms as
+$m\,c(\theta_0 + g_0) + (1 - m)\,c(g_0)$. For continuous $D$ with index
+error $\delta_D D$ the multiplier is instead
+$\bar c_1 = E[c(\eta_0) D R] / E[R^2]$, which is a different expression. The
+covariate-direction leak is nonzero because $c$ depends on $X$ through
+$\eta_0$; we do not bound it, and nothing here guarantees it is small
+relative to $\bar c_1 \delta_D$ outside the designs we study. @tbl-sensitivity
+is the empirical counterpart, recovering the predicted slope $\bar c_1$.
 
 # Appendix: simulation and application details {#sec-appendix}
 
@@ -658,12 +1015,73 @@ sample the full-model parameters from $N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\
 (thresholds included for `clm`) before each completion. Diagnostic draws use
 an RNG stream independent of the estimation draws.
 
+One algorithmic detail matters enough to state. The surrogate $S$ changes with
+every draw, so its nuisance $\hat\ell$ could in principle be refit each time.
+We do not: $\hat\ell$ is fit once, by cross-fitting on a single plug-in
+completion built from $\hat V = x'\hat\beta$, and then held fixed across the
+$B$ proper draws. This is a real choice, because the target $E[S \mid X]$
+itself moves with the drawn parameter. Refitting per draw changes the results
+negligibly and costs $B$ times as much; the option is exposed in the software,
+and the comparison is one of the validation stages.
+
 ## Monte-Carlo precision
 
 Coverage is a binomial proportion, so its Monte-Carlo standard error at a
 true 0.95 is about $\sqrt{0.95 \cdot 0.05 / R}$: 0.010 at $R = 500$
 replications, 0.015 at $R = 200$, and 0.022 at $R = 100$. Per-cell bias and
 coverage Monte-Carlo standard errors are in the committed result files.
+
+# Supplement: numerical verification of the theory {#sec-numverify}
+
+Every closed-form expression in @sec-theory is checked against an independent
+numerical route. Both scripts are in the project repository and assert their
+own pass conditions.
+
+## Pass-through derivatives (Proposition A1)
+
+`R/theory_ordinal_passthrough.R` computes $\psi$ by quadrature and compares
+the analytic index and threshold derivatives of @eq-gblocks against central
+differences, for $J = 2, 3, 4$ under logit, probit, and both Gumbel
+conventions. Maximum discrepancy across all configurations is $3\times10^{-10}$
+for the index block and $4\times10^{-10}$ for the threshold block; the
+identity $c = 1 - \sum_k \partial_{\kappa_k}\psi$ holds to $10^{-15}$. A
+Monte-Carlo check confirms `complete_surrogate()` samples the map it should
+($|z| < 4$ at $4\times10^5$ draws), so the theory describes the implemented
+estimator and not merely the model.
+
+The threshold-placement effect discussed in @sec-theory, at $e = 0$ under a
+logit:
+
+| $\kappa$ | $(0)$ binary | $(-0.5, 0.8)$ | $(-1, 0.2, 1.3)$ | $(\mp 0.5)$ | $(\mp 1.5)$ | $(\mp 3)$ | $(\mp 6)$ |
+|---|---|---|---|---|---|---|---|
+| $c(0)$ | 0.307 | 0.157 | 0.090 | 0.175 | 0.223 | 0.636 | 0.966 |
+
+The last four entries are all $J = 3$: widening a three-category partition
+drives $c$ from well below the binary value to nearly 1.
+
+## The variance decomposition (Theorems A1 and A2)
+
+`R/theory_variance_terms.R` evaluates $J_\theta$, $\sigma_e^2$, $\sigma_u^2$,
+$G$, $\Sigma_\beta$ and $C$ in closed form on the congenial testbed by
+product-grid quadrature, then compares @eq-vb against 4000 replications at
+$n = 20{,}000$ for $B \in \{1, 2, 5, 20\}$ and $\theta_0 \in \{1, 3\}$. All
+eight cells agree within 1.2 Monte-Carlo standard errors. Comparing across
+$B$ is what identifies the individual terms; a single pooled variance ratio
+cannot, because its Monte-Carlo error is the same size as the 1 to 2 percent
+effect being measured, which is why the earlier ratio-based reading of these
+simulations was inconclusive rather than confirmatory.
+
+The fixed-$B$ spread of @eq-bstar is confirmed directly: at $\theta_0 = 1$,
+$B = 20$, $n = 20{,}000$, the observed standard deviation of $nT$ across
+replications is 2.13 against a mean of 9.73, while @eq-bstar predicts
+$(1 + 1/B)V_{\mathrm{draw}}\sqrt{2/(B-1)} = 2.08$. The residual spread in the
+reported variance is therefore the between-draw sample variance, not
+estimation error, and it does not shrink with $n$.
+
+Both closed forms behind these quantities rest on one identity,
+$p(1-p)(\mu_+ - \mu_-) = H(p)$ for the logistic law, which yields both
+$c(e) = 1 - H(F(e))$ and $C = \Sigma_\beta(A - G)$ with $A = E[zR]$. It is
+verified pointwise by quadrature to $8\times10^{-16}$.
 
 # References
 
