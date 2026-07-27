@@ -270,15 +270,19 @@ moderate signal and `0.980` at strong signal, ruling out ordinal threshold
 estimation and Rubin pooling alone as explanations for the stage-5 ratio of
 1.50 to 1.88.
 
-The remaining work is to add the nuisance components in a factorial ladder.
+The paired nuisance ladder is also complete at 100 replications and `B = 10`.
+It identifies reuse of a fixed plug-in outcome nuisance as the mechanism:
+per-draw refitting changes empirical variance from 0.01380 to 0.01375 but
+reduces mean Rubin variance from 0.02077 to 0.01295. The corresponding `T/V`
+falls from 1.505 to 0.942.
 
 Remaining acceptance criteria:
 
-- compare oracle and estimated linear nuisances;
-- compare a fixed with a per-draw outcome nuisance;
-- add GAM nuisances;
-- vary sample size and imputation count;
-- identify which transition reproduces the large stage-5 variance ratio.
+- rerun the corrected per-draw estimator with the stage-5 settings of
+  `B = 25` and 200 replications;
+- verify bias against Monte Carlo standard error and coverage against the
+  prespecified band;
+- vary sample size and imputation count before changing the ordinal default.
 
 This is the best first task because it is cheap, falsifiable, and central to
 the ordinal inference claim.

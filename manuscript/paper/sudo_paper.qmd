@@ -536,7 +536,14 @@ Monte Carlo throughout a clean cumulative-logit testbed. It predicts only
 2.8% variance overstatement at moderate signal and 2.0% understatement at
 strong signal, so threshold estimation and ordinal pooling alone cannot
 explain the 50% to 88% variance gap after flexible partialling nuisances are
-introduced. Rubin's
+introduced. A paired nuisance-isolation experiment locates the gap in the
+fixed outcome nuisance: refitting $E[S\mid X]$ for every ordinal completion
+reduces mean $T$ by 38% while leaving the empirical sampling variance
+unchanged, moving $T/V$ from 1.505 to 0.942. This identifies the mechanism,
+but the refitted procedure has so far been checked at only 100 replications
+and $B=10$, so @tbl-ordinal retains the validated conservative stage-5
+procedure while the refitted version undergoes the full validation ladder.
+Rubin's
 variance is guaranteed to err safe only under conditions we have not
 verified here (a valid imputation model together with a self-efficient
 complete-data analysis), and under uncongeniality it can be biased in
@@ -1192,13 +1199,15 @@ sample the full-model parameters from $N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\
 an RNG stream independent of the estimation draws.
 
 One algorithmic detail matters enough to state. The surrogate $S$ changes with
-every draw, so its nuisance $\hat\ell$ could in principle be refit each time.
-We do not: $\hat\ell$ is fit once, by cross-fitting on a single plug-in
-completion built from $\hat V = x'\hat\beta$, and then held fixed across the
-$B$ proper draws. This is a real choice, because the target $E[S \mid X]$
-itself moves with the drawn parameter. Refitting per draw changes the results
-negligibly and costs $B$ times as much; the option is exposed in the software,
-and the comparison is one of the validation stages.
+every draw, so its nuisance $\hat\ell$ can be refit each time. The validated
+stages currently fit it once, by cross-fitting on a single plug-in completion
+built from $\hat V = x'\hat\beta$, and hold it fixed across the $B$ proper
+draws. Earlier binary experiments found refitting negligible, but the ordinal
+nuisance-isolation ladder does not: holding $\hat\ell$ fixed nearly doubles
+the within-draw component relative to a per-draw refit and accounts for the
+stage-5 conservatism. The option is exposed in the software. Per-draw ordinal
+refitting is therefore the candidate correction, pending the full
+theta-level validation required before changing the default.
 
 ## Monte-Carlo precision
 
@@ -1270,6 +1279,19 @@ $\theta_0\in\{1,2.5\}$. At $B=20$, the predicted $T/V$ is 1.028 and 0.980,
 respectively. The ordinal threshold machinery therefore changes the same
 small Rubin discrepancy identified in the binary testbed but does not explain
 the much larger stage-5 gap.
+
+`R/theory_ordinal_nuisance_ladder.R` then changes one partialling component at
+a time on the exact stage-5 DGP, using common samples, folds, imputation fits,
+parameter draws, and surrogates across arms. At $n=2{,}000$, $B=10$, and 100
+replications, the current fixed-$\hat\ell$ arm has empirical variance 0.01380
+and mean $T=0.02077$, while refitting $\hat\ell$ on every draw has empirical
+variance 0.01375 and mean $T=0.01295$. Thus the point estimator is unchanged
+but $T/V$ falls from 1.505 to 0.942. The difference is almost entirely in
+$\bar W$, which falls from 0.01666 to 0.00876; the between-draw component is
+unchanged. This isolates reuse of the plug-in outcome nuisance as the source
+of the stage-5 variance inflation. A full $B=25$, 200-replication validation
+is still required before the refitted procedure replaces the current
+ordinal default.
 
 # References
 
