@@ -42,6 +42,7 @@ Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-v
 # Theory checks behind the paper's asymptotic-theory appendix
 Rscript R/theory_ordinal_passthrough.R # pass-through derivatives, J=2,3,4, three links
 Rscript R/theory_variance_terms.R      # fixed-B variance and the Rubin exactness gap
+Rscript R/theory_ordinal_variance_terms.R # ordinal threshold and Rubin terms
 
 # Python package (always use uv from python/; no conda or system Python)
 cd python && uv sync && uv run pytest

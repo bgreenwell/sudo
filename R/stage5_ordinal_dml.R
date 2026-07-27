@@ -78,9 +78,11 @@ for (n in c(1000, 2000)) {
   # approximation bias that does not vanish with n; richer bases trade it
   # for worse small-sample behavior (df=6 doubles the n=1000 bias)
   stopifnot(abs(s$bias) < max(2 * s$mc_se_bias, 0.025 * abs(theta0)) + 1e-9)
-  # coverage floor only: proper draws inject the full model's beta_D
-  # posterior into T, which exceeds the DML sampling variance — Rubin is
-  # conservative under uncongeniality (Meng 1994), never anti-conservative
+  # Coverage floor only. This design is conservative, but
+  # theory_ordinal_variance_terms.R shows that ordinal Rubin pooling itself
+  # differs from the target variance by only a few percent in a clean
+  # parametric testbed. The much larger gap here remains a nuisance-side
+  # finite-sample question, not a general safety property of Rubin's rules.
   stopifnot(s$coverage >= 0.925)
 }
 parallel::stopCluster(cl)

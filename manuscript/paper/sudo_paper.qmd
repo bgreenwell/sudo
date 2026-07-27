@@ -18,7 +18,7 @@ author:
 authorcols: true
 date: today
 abstract: |
-  Double Machine Learning (DML) delivers root-$n$ consistent, asymptotically normal causal estimates by pairing Neyman-orthogonal scores with cross-fitting, but its partially linear model is confined to continuous outcomes. Binary outcomes are served only by a logit-hardwired logistic estimator; ordinal outcomes by no DML method we are aware of. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a categorical response as missing data and fills it in: each observation is completed to a continuous *surrogate* drawn from the assumed error distribution, truncated to the interval the observed category implies, after which ordinary partialling-out applies. The completions are multiple imputations, and pooling them by Rubin's rules is what restores nominal coverage, but only when the draws are *proper*, redrawing the imputation model's parameters (thresholds included) before each draw; naive and improper draws demonstrably under-cover. The method is link-flexible and the surrogate residuals double as a link diagnostic. We further give a closed-form account of how imputation-model error reaches the target: it passes through a truncation factor that rises from about 0.3 to 1 as the signal strengthens, so the imputation model's error is first-order, not the second-order nuisance error of standard DML. With a partially-linear machine-learning imputation model and a full-pipeline bootstrap, the method attains nominal coverage even with black-box learners. We illustrate on wine-quality data, estimating the effect of volatile acidity on an ordinal quality score.
+  Double Machine Learning (DML) delivers root-$n$ consistent, asymptotically normal causal estimates by pairing Neyman-orthogonal scores with cross-fitting, but its partially linear model is confined to continuous outcomes. Binary outcomes are served only by a logit-hardwired logistic estimator; ordinal outcomes by no DML method we are aware of. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a categorical response as missing data and fills it in: each observation is completed to a continuous *surrogate* drawn from the assumed error distribution, truncated to the interval the observed category implies, after which ordinary partialling-out applies. The completions are multiple imputations, and pooling them by Rubin's rules is what restores nominal coverage, but only when the draws are *proper*, redrawing the imputation model's parameters (thresholds included) before each draw; naive and improper draws demonstrably under-cover. The method is link-flexible and the surrogate residuals double as a link diagnostic. We further give a closed-form account of how imputation-model error reaches the target: it passes through a truncation factor that rises from about 0.3 to 1 as the signal strengthens, so the imputation model's error is first-order, not the second-order nuisance error of standard DML. In the black-box designs studied, a partially-linear machine-learning imputation model with a full-pipeline bootstrap attains nominal coverage. We illustrate on wine-quality data, estimating the effect of volatile acidity on an ordinal quality score.
 format:
   arxiv-pdf:
     keep-tex: false
@@ -46,16 +46,17 @@ obeys the additive structure only on a *latent* scale: there is an
 unobserved continuous utility $U = \theta_0 D + g_0(X) + \varepsilon$, and
 we see only which interval $U$ fell in. Applying the continuous
 partialling-out estimator to the raw labels still runs, but it changes the
-estimand: it returns a probability-scale contrast, not $\theta_0$. The
+estimand: it returns a probability-scale contrast, not $\theta_0$. An
 available remedy for the binary case is the logistic
 partially linear model of @liu2021lplr, the DML estimator for a binary
 outcome with an official implementation in the DoubleML software. It is
 effective but narrow: the logit link is built into its orthogonal score, so
 it is confined to binary responses under a logistic distribution and has no ordinal
 counterpart; for ordinal outcomes we are aware of no DML estimator. Ordinal
-outcomes are therefore the sharpest gap, and the one this paper closes,
-while the binary-logistic case of @liu2021lplr reappears as a single link
-choice within SUDO.
+outcomes are therefore the sharpest gap, and the one this paper closes.
+Under a logistic link, SUDO targets the same latent-scale coefficient as
+@liu2021lplr through a different surrogate-completion construction; we do not
+claim that the two estimators are identical or asymptotically equivalent.
 
 Independently, @liu2018 and @cheng2021 developed *surrogate residuals* as a
 diagnostic device for discrete-choice models. Grounded in random utility
@@ -97,7 +98,8 @@ $-\infty = \kappa_0 < \kappa_1 < \dots < \kappa_{J-1} < \kappa_J = \infty$
 pass-through factor $c(\cdot)$ of @sec-theory). The latent utility
 follows a partially linear model
 
-$$U = \theta_0 D + g_0(X) + \varepsilon, \qquad \varepsilon \sim F$$ {#eq-latent}
+$$U = \theta_0 D + g_0(X) + \varepsilon, \qquad
+\varepsilon \mid D,X \sim F$$ {#eq-latent}
 with $g_0$ an arbitrary nuisance function and $F$ a known error distribution
 (logistic, giving proportional-odds; extreme-value, giving
 complementary-log-log; etc.). The target $\theta_0$ is the treatment effect
@@ -110,10 +112,10 @@ than estimated, which is what gives $\theta_0$ its familiar reading: under
 the logistic link a one-unit change in $D$ shifts the cumulative log-odds
 of $Y$ by $\theta_0$, so $\exp(\theta_0)$ is a proportional-odds ratio.
 
-Four assumptions identify $\theta_0$. (i) *Selection-on-observables*: the
-latent error is mean-independent of the treatment given the covariates,
-$E[\varepsilon \mid D, X] = E[\varepsilon \mid X]$, so no unobserved
-confounder acts beyond $X$. (ii) *A constant latent-scale effect*: the
+Four assumptions identify $\theta_0$. (i) *Selection-on-observables*: no
+unobserved confounder acts beyond $X$; together with the conditional
+location-family statement in @eq-latent, the latent error has the same
+normalized law across treatment values given $X$. (ii) *A constant latent-scale effect*: the
 partially linear form (@eq-latent) makes $\theta_0$ a single number rather
 than a function of $X$. (iii) *A correctly specified latent distribution*:
 the surrogate completion draws from $F$ and the assumed cutpoints, so the
@@ -528,7 +530,13 @@ knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
 **Ordinal outcomes.** With a three-category outcome and machine-learning
 adjustment, SUDO is essentially unbiased with valid-to-conservative
 coverage (@tbl-ordinal), a regime for which we are aware of no DML
-competitor. We do not have an explanation for the conservatism. Rubin's
+competitor. We do not yet have a complete explanation for the conservatism.
+A term-level ordinal decomposition includes the threshold block and matches
+Monte Carlo throughout a clean cumulative-logit testbed. It predicts only
+2.8% variance overstatement at moderate signal and 2.0% understatement at
+strong signal, so threshold estimation and ordinal pooling alone cannot
+explain the 50% to 88% variance gap after flexible partialling nuisances are
+introduced. Rubin's
 variance is guaranteed to err safe only under conditions we have not
 verified here (a valid imputation model together with a self-efficient
 complete-data analysis), and under uncongeniality it can be biased in
@@ -717,10 +725,10 @@ outcome or a weak effect, which is exactly when this check is worth running.
 
 SUDO extends double machine learning to binary and, to our knowledge for
 the first time, ordinal latent-scale outcomes, by treating the latent
-outcome as missing data and completing it. It subsumes the existing
-binary-logistic DML estimator of @liu2021lplr as the special case of a
-logit link, and removes both of that method's restrictions: it admits any
-error distribution and handles ordinal as well as binary responses. The
+outcome as missing data and completing it. Under the logit link it targets
+the same latent-scale coefficient as the binary-logistic DML estimator of
+@liu2021lplr, while admitting other error distributions and ordinal as well
+as binary responses. The
 methodological core is inferential: the completions are multiple
 imputations, and in our experiments only proper draws, which redraw the
 imputation model's parameters (thresholds included), attain nominal
@@ -814,7 +822,8 @@ $$\sigma_e^2 = E[e^2 R^2], \quad
 \sigma_\varphi^2 = E[\xi^2 R^2] = \sigma_e^2 + \sigma_u^2 .$$
 
 We assume throughout: **(A1)** the latent model @eq-latent with
-selection-on-observables, a constant latent-scale effect, error law $F$, and
+selection-on-observables, a constant latent-scale effect, conditional error
+law $\varepsilon\mid D,X\sim F$, and
 overlap ($J_\theta > 0$, $\operatorname{Var}(D \mid X)$ bounded away from 0
 and $\infty$); **(A2)** a correctly specified, regular imputation model, so
 $\eta(D, X; \beta_0) = \theta_0 D + g_0(X)$ and
@@ -1249,6 +1258,18 @@ Both closed forms behind these quantities rest on one identity,
 $p(1-p)(\mu_+ - \mu_-) = H(p)$ for the logistic law, which yields both
 $c(e) = 1 - H(F(e))$ and $C = \Sigma_\beta(A - G)$ with $A = E[zR]$. It is
 verified pointwise by quadrature to $8\times10^{-16}$.
+
+The ordinal counterpart is checked by
+`R/theory_ordinal_variance_terms.R` on a correctly specified
+three-category cumulative-logit design with continuous treatment and exactly
+linear partialling nuisances. The calculation includes both threshold
+derivatives in $G$ and matches the fixed-$B$ sampling variance and expected
+Rubin variance within 2.3 Monte-Carlo standard errors in every cell at
+$n=8{,}000$, 500 replications, $B\in\{1,2,5,20\}$, and
+$\theta_0\in\{1,2.5\}$. At $B=20$, the predicted $T/V$ is 1.028 and 0.980,
+respectively. The ordinal threshold machinery therefore changes the same
+small Rubin discrepancy identified in the binary testbed but does not explain
+the much larger stage-5 gap.
 
 # References
 
