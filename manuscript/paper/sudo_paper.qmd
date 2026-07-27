@@ -384,7 +384,7 @@ unbiased across effect sizes in our experiments. The inference problem is
 addressed by a *full-pipeline bootstrap*, the nonparametric counterpart of
 the proper draw: where a parametric model injects imputation-model
 uncertainty by sampling $\beta$ from its covariance, here we resample the
-whole dataset and rerun the entire procedure, cross-fitting and all, using
+whole data set and rerun the entire procedure, cross-fitting and all, using
 the spread of the results as the standard error. Both target the same
 variance component; the bootstrap simply obtains it by refitting when no
 covariance is available to sample from. It has to wrap the *whole* pipeline,
@@ -410,17 +410,35 @@ the whole imputation model.
 
 # Simulation study {#sec-sims}
 
-Unless noted, data are simulated from the latent model (@eq-latent) with
-five covariates, a
-treatment whose assignment depends on some of them, logistic noise, and a
-nonlinear $g_0$; coverage targets $0.95$ and Monte-Carlo error on a
-coverage figure is about $\pm 0.02$. **SD** is the estimator's true
-run-to-run variability and **Mean SE** the standard error it reports;
-Mean SE below SD means intervals that are too short. Replication counts,
-the full data-generating equations, learner and tuning specifications, fold
-and draw counts, and per-cell Monte-Carlo standard errors are given in the
-repository. The tables below are generated at render time from those
-committed result files.
+Every design follows one recipe. Covariates are drawn independently,
+treatment is assigned from them, a latent utility is formed, and the observed
+category is read off:
+
+$$X_1, \dots, X_p \stackrel{\text{iid}}{\sim} N(0, 1), \qquad
+D \mid X \sim \mathrm{Bernoulli}\bigl(\Lambda(\pi(X))\bigr), \qquad
+U = \theta_0 D + g_0(X) + \varepsilon,$$ {#eq-dgp}
+$$\varepsilon \sim F, \qquad
+Y = j \iff \kappa_{j-1} < U \le \kappa_j,$$
+
+with $\Lambda$ the logistic CDF. A design is then fixed by choosing
+$(p, \pi, g_0, F, \kappa, \theta_0, n)$. Two covariate structures are used
+throughout: a **one-covariate** setting with $\pi(X) = 0.8X$ and
+$g_0(X) = X$, where every model in play is correctly specified and the
+question is purely about pooling; and a **five-covariate machine-learning**
+setting with
+$$\pi(X) = X_4 + \cos X_5, \qquad g_0(X) = X_1^2 + \sin X_2 + 0.5 X_3,$$
+which is nonlinear in $X$ and makes the treatment depend on covariates that
+do not enter $g_0$. Binary outcomes take $\kappa = (0)$; ordinal ones cut
+$U$ at two interior thresholds into $J = 3$ categories. @tbl-dgp in the
+appendix lists every design's parameters.
+
+Coverage targets $0.95$ and Monte-Carlo error on a coverage figure is about
+$\pm 0.02$. **SD** is the estimator's true run-to-run variability and
+**Mean SE** the standard error it reports; Mean SE below SD means intervals
+that are too short. Learner and tuning specifications, fold and draw counts,
+and per-cell Monte-Carlo standard errors are in @sec-appendix and the
+committed result files, from which the tables below are generated at render
+time.
 
 ```{r}
 #| label: results-setup
@@ -972,45 +990,55 @@ committed per-cell result files are in `R/` and `R/results/`.
 
 ## Data-generating processes
 
-**Ladder (@tbl-ladder), one covariate.** $D \sim \mathrm{Bernoulli}(\Lambda(0.8 X))$
-with $\Lambda$ the logistic CDF, $Y = \mathbf{1}\{1.5\,D + X + \varepsilon > 0\}$;
-$n = 5000$, 500 replications. Full model $\mathrm{glm}(Y \sim D + X)$;
-$B \in \{10, 25, 50\}$ surrogate draws (the table shows $B = 25$).
+All designs instantiate @eq-dgp with one of two covariate structures:
 
-**Ordinal, parametric (@tbl-ordinal, top), one covariate.** As above but
-$U = 1.0\,D + X + \varepsilon$ cut at $(-1, 1)$ into $J = 3$ categories;
-$n = 3000$, 500 replications. Full model `ordinal::clm`, whose covariance
-covers the thresholds; $B = 25$.
+- **S1**, one covariate: $p = 1$, $\pi(X) = 0.8X$, $g_0(X) = X$. Every model
+  in play is correctly specified, so only the pooling is under test.
+- **S5**, five covariates: $p = 5$, $\pi(X) = X_4 + \cos X_5$,
+  $g_0(X) = X_1^2 + \sin X_2 + 0.5 X_3$. Nonlinear in $X$, and the treatment
+  depends on covariates absent from $g_0$.
 
-**Machine-learning design, five covariates.** $g_0(X) = X_1^2 + \sin X_2 + 0.5 X_3$,
-$P(D = 1 \mid X) = \Lambda(X_4 + \cos X_5)$, $U = \theta_0 D + g_0(X) + \varepsilon$.
-Binary ($Y = \mathbf{1}\{U > 0\}$) for the black-box and sensitivity studies.
+| design | structure | $F$ | $\kappa$ | $\theta_0$ | $n$ | reps |
+|---|---|---|---|---|---|---|
+| Inference ladder (@tbl-ladder) | S1 | logistic | $(0)$ | 1.5 | 5000 | 500 |
+| Ordinal parametric (@tbl-ordinal, top) | S1 | logistic | $(-1, 1)$ | 1.0 | 3000 | 500 |
+| Binary ML | S5 | logistic | $(0)$ | 0.5, 3 | 1000, 2000 | 200 |
+| Ordinal ML (@tbl-ordinal, bottom) | S5 | logistic | $(0, 2)$ | 1.0 | 1000, 2000 | 200 |
+| Link misspecification | S1 | Gumbel | $(0)$ or $(0, 2)$ | 1.0 | 5000 | 200 |
+| Sensitivity (@tbl-sensitivity) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 200 |
+| Black-box imputation | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 100 |
 
-**Ordinal, spline and ML (@tbl-ordinal, bottom), five covariates.** The
-machine-learning covariate structure with $U = 1.0\,D + g_0(X) + \varepsilon$
-cut at $(0, 2)$ into $J = 3$; $n = 2000$, 200 replications. Full model `clm`
-on $D$ and natural-spline bases $\mathrm{ns}(X_k, 4)$; partialling nuisances
-by `mgcv::gam`; $B = 25$.
+: Data-generating processes. $\kappa$ lists the interior cutpoints, so
+$(0)$ is binary and a pair gives $J = 3$. {#tbl-dgp}
 
-**Link misspecification.** The machine-learning design and its ordinal
-analogue with extreme-value (Gumbel) $\varepsilon$; the analyst fits logit
-(misspecified) or cloglog (correct); 200 replications.
+**Models fitted.** The ladder uses $\mathrm{glm}(Y \sim D + X)$ as the
+imputation model with $B \in \{10, 25, 50\}$ draws (the table shows
+$B = 25$). The ordinal parametric design uses `ordinal::clm`, whose
+covariance covers the thresholds, with $B = 25$. The ordinal ML design uses
+`clm` on $D$ and natural-spline bases $\mathrm{ns}(X_k, 4)$ with `mgcv::gam`
+partialling nuisances and $B = 25$.
 
-**Sensitivity ladder (@tbl-sensitivity).** The machine-learning design with
-the oracle index and oracle partialling nuisances, then a known function
-added to one input: the outcome nuisance only (DML-1), both nuisances
-(DML-2), the index in the covariate direction (SUDO-X), or the index in the
-treatment direction by $\kappa$ (SUDO-D). Bias is traced against a common
-latent-scale RMSE; $\theta_0 \in \{1.5, 3\}$, $n = 2000$, 200 replications.
-The fitted SUDO-D slope reproduces $\bar c_1$ (0.669 at $\theta_0 = 1.5$,
-0.861 at $\theta_0 = 3$) to within 0.001.
+**Link misspecification.** The one-covariate structure with extreme-value
+$\varepsilon$ rather than logistic: Gumbel-max for the binary case, matching
+`glm` with a cloglog link, and Gumbel-min for the ordinal case, matching
+`ordinal::clm` with a cloglog link. The analyst fits either logit
+(misspecified) or cloglog (correct). Note this design deliberately keeps the
+one-covariate structure, so that the only thing wrong is the link.
 
-**Black-box imputation model.** The machine-learning design (binary),
-$\theta_0 \in \{1.5, 3\}$, $n = 2000$. Imputation model: a partially-linear
+**Sensitivity ladder (@tbl-sensitivity).** Starts from the oracle index and
+oracle partialling nuisances, then adds a known perturbation of size $\delta$
+to one input: the outcome nuisance only (DML-1), both nuisances (DML-2), the
+index in the covariate direction (SUDO-X), or the index in the treatment
+direction (SUDO-D). Bias is traced against a common latent-scale RMSE so the
+four are comparable. The fitted SUDO-D slope reproduces $\bar c_1$ (0.669 at
+$\theta_0 = 1.5$, 0.861 at $\theta_0 = 3$) to within 0.001, which is the
+independent check on @eq-ce.
+
+**Black-box imputation model.** Imputation model is a partially-linear
 backfit $\hat V = \hat\beta D + \hat f(X)$ with $\hat f$ a single-hidden-layer
 neural net (`nnet`, `size = 4`, `decay = 0.3`, five backfitting iterations,
 selected on theta-level MC bias). Standard errors from the full-pipeline
-bootstrap (100 dataset resamples), 100 replications.
+bootstrap with 100 data set resamples.
 
 **Wine application.** Full model `ordinal::clm` on $D$ and either the raw
 covariates (linear) or $\mathrm{ns}(X_k, 3)$ (spline); partialling nuisances
