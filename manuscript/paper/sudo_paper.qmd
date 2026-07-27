@@ -401,10 +401,22 @@ available: @tang2024 give conditions for bootstrap consistency of
 asymptotically linear estimators with machine-learned nuisances, and
 @lin2026 establish bootstrap validity for general DML estimators under
 exchangeably weighted resampling, under the same conditions that make DML
-itself valid. Neither covers the generated-outcome step, which is the gap. A Bayesian ensemble, whose
-posterior draws are complete alternative imputation models, would supply
-proper draws directly and is a natural extension. A forest's out-of-bag or
-infinitesimal-jackknife variance [@wager2014] is not such a route: it
+itself valid. Neither covers the generated-outcome step, which is the gap.
+
+A Bayesian ensemble is the obvious alternative, since each posterior draw is
+a complete alternative imputation model and so is a proper draw by
+construction. The mechanism is even tidier than it first appears: under a
+probit imputation model the Albert-Chib augmentation variable is exactly the
+surrogate completion, so a Gibbs sweep returns one for free. We tried it and
+it did not pay off. On a probit analogue of the machine-learning design,
+imputation by BART, both unconstrained and with the partially-linear
+constraint above, carried a bias that grew with signal strength to about 5%
+of $\theta_0$, where the backfit is unbiased, and its posterior propagated
+variance no better than the bootstrap it was meant to replace. That is one
+design and not a general verdict, but we report it because the elegance
+argument is the natural thing to try next and it did not survive contact.
+The run is in the repository. A forest's out-of-bag or
+infinitesimal-jackknife variance [@wager2014] is not such a route at all: it
 quantifies prediction uncertainty at a point, not a coherent joint draw of
 the whole imputation model.
 
@@ -652,9 +664,11 @@ simulation-supported estimator with a worked-out first-order theory, not a
 fully proven inferential procedure. Extending the black-box results beyond the two
 data-generating processes studied, and to unordered (multinomial)
 outcomes, which require a vector surrogate and have no single scalar
-effect, are natural next steps. A Bayesian ensemble imputation model, whose posterior
-draws are literal proper imputations, would make the black-box inference
-route more elegant than the bootstrap.
+effect, are natural next steps. A Bayesian ensemble imputation model, whose
+posterior draws are literal proper imputations, is the tidiest candidate for
+replacing the bootstrap, but a BART version of it did not improve on the
+bootstrap in the one design we tried; what would make that route work is
+itself an open question.
 
 # Data and software
 
@@ -1007,9 +1021,18 @@ All designs instantiate @eq-dgp with one of two covariate structures:
 | Link misspecification | S1 | Gumbel | $(0)$ or $(0, 2)$ | 1.0 | 5000 | 200 |
 | Sensitivity (@tbl-sensitivity) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 200 |
 | Black-box imputation | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 100 |
+| Bayesian imputation (repository only) | S5$'$ | normal | $(0)$ | 1.5, 3 | 2000 | 200 |
 
 : Data-generating processes. $\kappa$ lists the interior cutpoints, so
 $(0)$ is binary and a pair gives $J = 3$. {#tbl-dgp}
+
+S5$'$ is the probit analogue of S5 used for the Bayesian imputation model,
+whose binary machinery is probit: the systematic part is divided by
+$\mathrm{sd}(\text{logistic}) = \pi/\sqrt3$ before normal errors are added,
+which matches the event rates of S5 to within 0.006 and puts $\theta_0$ on
+the probit scale at $\theta_0/1.8138$. The $\theta_0$ column reports the
+logit-scale values for comparability. That design supports no table here;
+it is reported so the claim in the machine-learning section is checkable.
 
 **Models fitted.** The ladder uses $\mathrm{glm}(Y \sim D + X)$ as the
 imputation model with $B \in \{10, 25, 50\}$ draws (the table shows
