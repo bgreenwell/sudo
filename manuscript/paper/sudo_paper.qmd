@@ -303,9 +303,24 @@ but index error passes through with a factor strictly below one,
 $$c(e) = \left.\frac{\partial \psi}{\partial v}\right|_{v=e}
 = 1 - f(-e)\,\bigl(\mu_+(e) - \mu_-(e)\bigr), \qquad f = F'$$ {#eq-ce}
 
+Read $c$ as the fraction of index error that survives the truncation. With
+no truncation the surrogate would be index plus noise and its mean would move
+one-for-one with $\hat V$, giving $c = 1$; the observed category drags it
+back, and $c$ is what is left.
+
 Under a logistic link $c$ rises from $0.31$ at $e = 0$ to $1$ in the tails
-(@fig-passthrough); the value at the origin is exactly $1 - \log 2$, since
-for the logit $c(e) = 1 - H(F(e))$ with $H$ the binary entropy in nats.
+(@fig-passthrough). The value at the origin is exactly $1 - \log 2$, because
+for the logit
+$$c(e) = 1 - H\bigl(F(e)\bigr), \qquad H(p) = -p\log p - (1-p)\log(1-p),$$ {#eq-centropy}
+so the self-correction is precisely the entropy of the outcome. That is the
+whole mechanism in one line: at $p = 1/2$ the label is maximally uncertain,
+so learning it is maximally informative about where $U$ fell and the
+correction is largest; as $p \to 1$ the label was already predictable, tells
+us nothing we did not have from $\hat V$, and cannot correct anything. It is
+also why strong effects are the hard case, and why an ordinal category
+spanning many error standard deviations behaves badly: both make the observed
+outcome uninformative about $U$.
+
 The density in @eq-ce is evaluated at $-e$, which matters for an asymmetric
 $F$ such as the extreme-value link; writing $f(e)$ is a shorthand valid only
 when $F$ is symmetric. @sec-theory gives the general-$J$ form of both
@@ -336,9 +351,9 @@ text(0.1, ce(0) + 0.1, sprintf("%.2f", ce(0)), pos = 4, cex = 0.9)
 ```
 
 Linearizing $\psi$ around the truth, the bias of $\hat\theta$ is
-approximately $\bar c_1\, \delta_D$ plus a small covariate-direction leak,
-where $\delta_D$ is the imputation model's error in its effective treatment
-coefficient and $\bar c_1 = E[w\, c(\theta_0 + g)] / E[w]$,
+approximately $\bar c_1\, \delta_D$ plus a covariate-direction leak given
+below, where $\delta_D$ is the imputation model's error in its effective
+treatment coefficient and $\bar c_1 = E[w\, c(\theta_0 + g)] / E[w]$,
 $w = m(1-m)$.
 
 Three consequences follow. First, the truncation *self-corrects*: because
@@ -346,9 +361,37 @@ $Y$ comes from the truth, it drags $S$ toward the correct interval, which
 is why $c < 1$. But $c \to 1$ as the signal grows: once $Y$ is nearly
 deterministic it adds no information beyond $\hat V$, and the self-
 correction switches off. This, not any numerical instability, is why
-inference is hardest at strong effect sizes. Second, the covariate
-direction is not fully protected either, because $S$ is nonlinear in
-$\hat V$; the leak is merely small in practice. Third, in the sharpest
+inference is hardest at strong effect sizes.
+
+Second, the covariate direction is not protected either, which is worth
+spelling out because the opposite is the natural guess. Split the imputation
+model's index error into a treatment part and a covariate part,
+$\hat V - \eta = \delta_D D + \delta_X(X)$. Partialling-out regresses on
+$R = D - m_0(X)$, and $E[R \mid X] = 0$ annihilates any function of $X$, so
+$\delta_X$ ought to wash out. It does not, because $S$ is nonlinear in
+$\hat V$: linearizing multiplies the index error by $c(\eta)$, and $\eta$
+depends on $D$, so $\delta_X$ arrives multiplied by something that itself
+varies with treatment and therefore survives the projection. For binary $D$,
+writing $\eta_d = \theta_0 d + g_0(X)$ and $w = \mathrm{Var}(D \mid X)$, the
+surviving term is
+$$\text{covariate-direction leak} \;=\;
+\frac{E\bigl[w\,\bigl(c(\eta_1) - c(\eta_0)\bigr)\,\delta_X\bigr]}{E[w]} .$$ {#eq-leak}
+The leak is thus governed by *how differently the truncation damps the two
+treatment arms*. Were $c$ the same in both, it would vanish exactly and the
+naive argument would be right.
+
+It is not always small. It does vanish when the imputation model can
+represent $g_0$, which is why designs with every model correctly specified
+show no covariate-direction bias. When it cannot, the leak bites: giving
+$g_0$ an $X_1 X_2$ interaction that an additive imputation model cannot
+express produces a bias of 5 to 6% of $\theta_0$ even though the treatment
+enters that model correctly, so $\delta_D = 0$ and @eq-leak is the whole
+story, and coverage falls to 0.75 at strong signal. Refitting the same design
+with an imputation model that admits the interaction removes the bias,
+confirming the imputation model rather than the adjustment nuisances as the
+source.
+
+Third, in the sharpest
 contrast with standard DML, the imputation model's error enters
 $\hat\theta$ *linearly*. In DML the outcome is observed and nuisance error
 enters only through a *product* of two errors [@chernozhukov2018;
@@ -536,6 +579,21 @@ is unbiased at both effect sizes; pairing it with the full-pipeline
 bootstrap brings coverage at the strong effect from 0.86 to 0.95
 (percentile interval, 100 replications, so coverage is resolved to about
 $\pm 0.03$), with the reported SE matching the true variability.
+
+**Continuous treatment, and other variations.** The designs above all use a
+binary treatment, while the application below does not, so we check the
+transfer directly. Replacing binary $D$ with $D = 0.7\pi(X) + N(0,1)$ in the
+S5 structure leaves the estimator unbiased for both a binary outcome
+($-0.1\%$ at $\theta_0 = 1$, $+0.4\%$ at $2.5$) and a three-category ordinal
+one ($+0.7\%$ and $+1.5\%$), so the latent-scale estimand and the machinery
+carry over. Doubling the covariate count to ten, and scaling the propensity
+so that overlap is markedly worse, likewise cost nothing in bias. The
+variation that does matter is the one described above, an imputation model
+unable to represent $g_0$. Coverage under a continuous treatment tracks the
+binary case at moderate signal but is worse at strong signal, where the
+reported SE falls furthest short of the truth; the full-pipeline bootstrap is
+the remedy there, as it is for the black-box case. Details and the full
+grid are in @tbl-dgp and the repository.
 
 # Application: volatile acidity and wine quality
 
@@ -989,10 +1047,13 @@ was set to zero; a general perturbation weights both arms as
 $m\,c(\theta_0 + g_0) + (1 - m)\,c(g_0)$. For continuous $D$ with index
 error $\delta_D D$ the multiplier is instead
 $\bar c_1 = E[c(\eta_0) D R] / E[R^2]$, which is a different expression. The
-covariate-direction leak is nonzero because $c$ depends on $X$ through
-$\eta_0$; we do not bound it, and nothing here guarantees it is small
-relative to $\bar c_1 \delta_D$ outside the designs we study. @tbl-sensitivity
-is the empirical counterpart, recovering the predicted slope $\bar c_1$.
+covariate-direction leak is @eq-leak, nonzero because $c$ depends on $D$
+through $\eta$ and so is not annihilated by projecting on $R$. We do not
+bound it. It is not negligible in general: with an imputation model unable to
+represent $g_0$ it reaches 5 to 6% of $\theta_0$ while $\delta_D = 0$, so
+nothing here guarantees it is small relative to $\bar c_1 \delta_D$.
+@tbl-sensitivity is the empirical counterpart for the treatment direction,
+recovering the predicted slope $\bar c_1$.
 
 # Appendix: simulation and application details {#sec-appendix}
 
@@ -1022,6 +1083,10 @@ All designs instantiate @eq-dgp with one of two covariate structures:
 | Sensitivity (@tbl-sensitivity) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 200 |
 | Black-box imputation | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 100 |
 | Bayesian imputation (repository only) | S5$'$ | normal | $(0)$ | 1.5, 3 | 2000 | 200 |
+| DGP variation, continuous $D$ | S5, $D = 0.7\pi(X) + N(0,1)$ | logistic | $(0)$ or $(0, 2)$ | 1, 2.5 | 2000 | 200 |
+| DGP variation, interaction | S5 plus $X_1 X_2$ in $g_0$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
+| DGP variation, dimension | S5 with $p = 10$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
+| DGP variation, overlap | S5, $\pi(X)$ scaled $2.5\times$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
 
 : Data-generating processes. $\kappa$ lists the interior cutpoints, so
 $(0)$ is binary and a pair gives $J = 3$. {#tbl-dgp}
