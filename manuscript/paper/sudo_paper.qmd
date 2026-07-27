@@ -688,6 +688,31 @@ error comes from Rubin's rules. Its validity in that setting has not been
 established. These values and the leave-one-out ranges are in the committed
 result files.
 
+**How wrong could the imputation model be?** Unmeasured confounding is the
+threat any observational analysis faces; the one specific to SUDO is error in
+the imputation model, which @eq-leak and @eq-ce show reaches $\hat\theta$ at
+first order. That channel admits its own sensitivity statement, and unlike
+the robustness value above it follows directly from the estimator's own
+theory rather than being imported. Since the bias is $\bar c_1 \delta_D$, the
+imputation model's error in the volatile-acidity coefficient that would drive
+the estimate to zero is $\delta_D = -\hat\theta / \bar c_1$. Evaluating
+$\bar c_1$ at the fitted index with the continuous-treatment multiplier
+$E[c(\eta) D R]/E[R^2]$ and the general-$J$ pass-through of Proposition A1
+gives $\bar c_1 = 0.21$ (red) and $0.17$ (white). The cumulative-link model
+would therefore have to be wrong about volatile acidity by $+2.55$ and
+$+2.38$ respectively, which is 4.2 and 4.8 times the coefficient it actually
+fits. An error of that size in a correctly-linked parametric model on a
+standardized predictor is not credible, so the finding is robust in this
+direction.
+
+Two things make it so, and both are worth noting because they are properties
+of the design rather than luck. The pass-through is small, near $0.2$ rather
+than the $0.67$ to $0.86$ of the binary simulations, because a six- or
+seven-category outcome with well-spaced thresholds constrains the latent
+utility tightly and the truncation self-corrects hard. And the estimate is
+far from zero relative to its scale. Both would deteriorate for a coarse
+outcome or a weak effect, which is exactly when this check is worth running.
+
 # Discussion
 
 SUDO extends double machine learning to binary and, to our knowledge for
@@ -868,9 +893,24 @@ truncation interval, its $\mu_j$ barely moves with the index, and the
 self-correction switches off. We therefore claim no monotonicity in $J$. The
 useful statement is that $c \to 1$ as the observed category stops
 constraining $U$, which is the same mechanism that drives $c \to 1$ at strong
-signal. For the binary logit there is a closed form,
-$c(e) = 1 - H(F(e))$ with $H$ the binary entropy in nats, giving
-$1 - \log 2 = 0.307$.
+signal.
+
+**The binary logit closed form.** For $J = 2$ under a logistic $F$, the
+truncated means have an exact expression that turns @eq-ce into @eq-centropy.
+Substituting $u = F(x)$, so that $x = \log\{u/(1-u)\}$ and $\mathrm{d}u = f(x)\,\mathrm{d}x$,
+the partial mean is
+$$\int_{-\infty}^{t} x f(x)\,\mathrm{d}x
+ = \int_0^{F(t)} \log\frac{u}{1-u}\,\mathrm{d}u
+ = q\log q + (1-q)\log(1-q) = -H(q), \qquad q = F(t),$$
+so the partial mean of a logistic is minus the entropy at the corresponding
+probability. Taking $t = -e$ and $p = F(e)$, and using $H(1-p) = H(p)$ with
+the fact that the untruncated mean is zero,
+$$\mu_-(e) = \frac{-H(p)}{1-p}, \qquad \mu_+(e) = \frac{H(p)}{p},
+\qquad \mu_+ - \mu_- = \frac{H(p)}{p(1-p)} .$$
+Since $f(-e) = f(e) = p(1-p)$ for the logistic, the factor cancels exactly in
+@eq-ce and $c(e) = 1 - H(p)$, giving $1 - \log 2 = 0.307$ at $e = 0$. The
+cancellation is what makes the self-correction *equal* to the outcome's
+entropy rather than merely proportional to something like it.
 
 ## Moment properties
 
