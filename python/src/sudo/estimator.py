@@ -19,13 +19,16 @@ class SudoDML:
     E[D|X] are pluggable sklearn regressors, cross-fitted. Each of the B
     surrogate draws redraws the full-model parameters (thresholds included)
     from their asymptotic posterior — proper multiple imputation — and the
-    draws are pooled with Rubin's rules (Barnard-Rubin t CI).
+    draws are pooled with Rubin's rules (Barnard-Rubin t CI). For ordinal
+    outcomes, E[S|X] is refit on every completion because reusing one plug-in
+    nuisance inflates the within-imputation variance.
 
     Attributes after fit: theta_, se_, ci_, df_, theta_b_.
     """
 
     def __init__(self, link="logit", n_folds=5, B=25, learner_s=None,
-                 learner_d=None, level=0.95, random_state=None):
+                 learner_d=None, level=0.95, random_state=None,
+                 refit_s_nuisance=None):
         self.link = link
         self.n_folds = n_folds
         self.B = B
@@ -33,6 +36,7 @@ class SudoDML:
         self.learner_d = learner_d
         self.level = level
         self.random_state = random_state
+        self.refit_s_nuisance = refit_s_nuisance
 
     def fit(self, X, D, y):
         X = np.asarray(X, dtype=float)
@@ -45,6 +49,10 @@ class SudoDML:
         folds = make_folds(n, self.n_folds, rng)
 
         binary = y.max() <= 1
+        refit_s_nuisance = (
+            not binary if self.refit_s_nuisance is None
+            else self.refit_s_nuisance
+        )
         codes = y + 1 if binary else y
         if binary:
             fm = fullmodel.fit_binary(y, D, X, link=self.link)
@@ -76,7 +84,11 @@ class SudoDML:
         for b in range(self.B):
             v_b, cuts_b = fm.draw(rng)
             s_b = complete_surrogate(codes, v_b, cuts_b, self.link, rng)
-            theta_b[b], var_b[b] = fwl_theta(s_b - s_hat, d_res)
+            s_hat_b = (
+                crossfit(X, s_b, learner_s, folds)
+                if refit_s_nuisance else s_hat
+            )
+            theta_b[b], var_b[b] = fwl_theta(s_b - s_hat_b, d_res)
 
         pool = pool_rubin(theta_b, var_b, level=self.level, n_obs=n)
         self.theta_ = pool.theta

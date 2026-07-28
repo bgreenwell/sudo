@@ -78,6 +78,7 @@ Rscript R/stage2_binary_rubin.R        # Rubin pooling: naive vs improper vs pro
 Rscript R/stage3_binary_dml.R          # full binary SUDO with ML nuisances
 Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal with flexible nuisances
+Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
 Rscript R/stage6_link_misspec.R        # wrong-link bias and variance-drift diagnostic
 Rscript R/wine_application.R           # application: volatile acidity on wine quality
 ```

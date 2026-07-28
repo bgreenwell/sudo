@@ -35,6 +35,7 @@ Rscript R/stage3m_pl_backfit_tuning.R  # tuned partially-linear backfit (bias fi
 Rscript R/stage3p_pipeline_bootstrap.R # full-pipeline bootstrap (SE fix, black-box model)
 Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal, spline clm, gam nuisances (parallel)
+Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
 Rscript R/stage6_link_misspec.R        # cloglog truth vs logit analyst, plus diagnostics
 Rscript R/wine_application.R           # application: volatile acidity on ordinal wine quality
 Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-variable bound

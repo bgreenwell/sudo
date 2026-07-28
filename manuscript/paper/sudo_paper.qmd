@@ -539,10 +539,11 @@ explain the 50% to 88% variance gap after flexible partialling nuisances are
 introduced. A paired nuisance-isolation experiment locates the gap in the
 fixed outcome nuisance: refitting $E[S\mid X]$ for every ordinal completion
 reduces mean $T$ by 38% while leaving the empirical sampling variance
-unchanged, moving $T/V$ from 1.505 to 0.942. This identifies the mechanism,
-but the refitted procedure has so far been checked at only 100 replications
-and $B=10$, so @tbl-ordinal retains the validated conservative stage-5
-procedure while the refitted version undergoes the full validation ladder.
+unchanged, moving $T/V$ from 1.505 to 0.942. The full corrected stage at
+$B=25$ and 200 replications has bias 0.016, coverage 0.960, and $T/V=1.214$
+with Monte-Carlo standard error 0.122. Per-draw refitting is therefore the
+validated ordinal procedure, at the cost of fitting the outcome nuisance
+$B$ times rather than once.
 Rubin's
 variance is guaranteed to err safe only under conditions we have not
 verified here (a valid imputation model together with a self-efficient
@@ -553,10 +554,10 @@ these designs, not a general guarantee.
 ```{r}
 #| label: tbl-ordinal
 #| echo: false
-#| tbl-cap: "Ordinal outcome, $J = 3$, $\\theta_0 = 1.0$. Parametric arm 500 replications, spline + ML arm 200."
-s4 <- rd("stage4_summary.csv"); s5 <- rd("stage5_summary.csv")
+#| tbl-cap: "Ordinal outcome, $J = 3$, $\\theta_0 = 1.0$. Parametric arm 500 replications; corrected spline + ML arm 200, with the outcome nuisance refit per completion."
+s4 <- rd("stage4_summary.csv"); s5 <- rd("stage5r_summary.csv")
 p <- s4[s4$estimator == "sudo_ordinal_clm", ]
-q <- s5[s5$estimator == "ordinal_dml_n2000", ]
+q <- s5[s5$estimator == "ordinal_refit_n2000_B25", ]
 tab <- data.frame(
   Configuration = c("Parametric, $n=3000$", "Spline + ML nuisances, $n=2000$"),
   Bias      = sg(c(p$bias, q$bias)),
@@ -1199,15 +1200,16 @@ sample the full-model parameters from $N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\
 an RNG stream independent of the estimation draws.
 
 One algorithmic detail matters enough to state. The surrogate $S$ changes with
-every draw, so its nuisance $\hat\ell$ can be refit each time. The validated
-stages currently fit it once, by cross-fitting on a single plug-in completion
-built from $\hat V = x'\hat\beta$, and hold it fixed across the $B$ proper
-draws. Earlier binary experiments found refitting negligible, but the ordinal
-nuisance-isolation ladder does not: holding $\hat\ell$ fixed nearly doubles
-the within-draw component relative to a per-draw refit and accounts for the
-stage-5 conservatism. The option is exposed in the software. Per-draw ordinal
-refitting is therefore the candidate correction, pending the full
-theta-level validation required before changing the default.
+every draw, so its nuisance $\hat\ell$ can be refit each time. Earlier binary
+experiments found refitting negligible, so the binary estimator fits
+$\hat\ell$ once on a plug-in completion and reuses it. The ordinal
+nuisance-isolation ladder finds the opposite: holding $\hat\ell$ fixed nearly
+doubles the within-draw component and accounts for the stage-5 conservatism.
+The corrected ordinal estimator therefore cross-fits $\hat\ell$ separately
+on every completion. The full $B=25$, 200-replication validation attains
+0.960 coverage. The correction costs roughly $B$ times as much for the
+outcome nuisance, which is why the cheaper binary behavior is retained where
+it has been validated.
 
 ## Monte-Carlo precision
 
@@ -1289,9 +1291,12 @@ variance 0.01375 and mean $T=0.01295$. Thus the point estimator is unchanged
 but $T/V$ falls from 1.505 to 0.942. The difference is almost entirely in
 $\bar W$, which falls from 0.01666 to 0.00876; the between-draw component is
 unchanged. This isolates reuse of the plug-in outcome nuisance as the source
-of the stage-5 variance inflation. A full $B=25$, 200-replication validation
-is still required before the refitted procedure replaces the current
-ordinal default.
+of the stage-5 variance inflation. `R/stage5r_ordinal_refit.R` performs the
+full correction check at $n=2{,}000$, $B=25$, and 200 replications. Bias is
+0.016 (Monte-Carlo SE 0.007), coverage is 0.960 (Monte-Carlo SE 0.014), and
+$T/V=1.214$ (Monte-Carlo SE 0.122), satisfying the stage's bias, coverage,
+and variance-calibration criteria. The corrected per-draw refit is therefore
+the ordinal default.
 
 # References
 

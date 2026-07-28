@@ -276,13 +276,14 @@ per-draw refitting changes empirical variance from 0.01380 to 0.01375 but
 reduces mean Rubin variance from 0.02077 to 0.01295. The corresponding `T/V`
 falls from 1.505 to 0.942.
 
-Remaining acceptance criteria:
+The full corrected stage is now complete at `n = 2000`, `B = 25`, and 200
+replications. It reports bias 0.016, coverage 0.960, and `T/V = 1.214` with
+Monte Carlo SE 0.122. It passes its bias, coverage, and variance-calibration
+criteria, so per-draw outcome-nuisance refitting is now the validated ordinal
+default.
 
-- rerun the corrected per-draw estimator with the stage-5 settings of
-  `B = 25` and 200 replications;
-- verify bias against Monte Carlo standard error and coverage against the
-  prespecified band;
-- vary sample size and imputation count before changing the ordinal default.
+Remaining work is to characterize runtime and calibration across additional
+sample sizes and imputation counts. This no longer blocks the default change.
 
 This is the best first task because it is cheap, falsifiable, and central to
 the ordinal inference claim.

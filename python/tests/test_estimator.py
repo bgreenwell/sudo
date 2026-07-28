@@ -40,6 +40,26 @@ def test_ordinal_cloglog_unsupported():
         SudoDML(link="cloglog", B=2, **LIN).fit(X, D, y)
 
 
+def test_ordinal_refits_outcome_nuisance_by_default(monkeypatch):
+    import sudo.estimator as estimator_module
+
+    calls = 0
+    original = estimator_module.crossfit
+
+    def counted_crossfit(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(estimator_module, "crossfit", counted_crossfit)
+    X, D, y, _ = generate_ordinal(300, random_seed=1)
+    SudoDML(B=3, n_folds=3, random_state=1, **LIN).fit(X, D, y)
+
+    # One treatment nuisance, one initial outcome nuisance, and one outcome
+    # nuisance for each of the three ordinal completions.
+    assert calls == 5
+
+
 def test_custom_sklearn_learner_accepted():
     # a passed unfitted sklearn estimator that defines __len__ (e.g. RF)
     # must not be truthiness-tested; regression guard for the `or default`

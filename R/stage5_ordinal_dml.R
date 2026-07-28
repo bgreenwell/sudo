@@ -1,8 +1,10 @@
-# Stage 5: ordinal SUDO with flexible nuisances (the full method).
+# Stage 5: original ordinal SUDO with a fixed plug-in outcome nuisance.
 # DGP: U = theta*D + g(X) + logis with the stage-3 nonlinear g and propensity,
 # cut into J=3. Full model: cross-fitted ordinal::clm on D + natural-spline
 # bases of X — linear in known columns, so its vcov (thresholds included)
 # supports exact proper-MI draws. Partialling nuisances E[S|X], E[D|X]: gam.
+# Retained as the conservative benchmark that exposed the variance inflation.
+# The corrected ordinal procedure is R/stage5r_ordinal_refit.R.
 # Run from repo root: Rscript R/stage5_ordinal_dml.R
 
 source("R/sudo/fwl.R")
