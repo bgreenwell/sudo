@@ -17,13 +17,19 @@ of its limitations. The pass-through analysis is insightful, the numerical
 verification is stronger than is typical for a paper at this stage, and the
 R-first validation ladder makes the empirical claims auditable.
 
-The paper is not yet ready to support its strongest inferential and novelty
-claims. The most visible unresolved issue is the substantial over-coverage in
-the ordinal machine-learning design. The full-pipeline bootstrap also remains
-an empirical result rather than a proved procedure. In addition, the formal
-identification assumptions should state the required conditional latent-error
-law more precisely, and several claims about existing logistic DML and
-black-box validity should be narrowed.
+The ordinal machine-learning variance anomaly identified in the first review
+has now been isolated and corrected: the outcome nuisance must be refit for
+each ordinal completion. The corrected estimator passes its Monte
+Carlo-aware bias, coverage, and variance-calibration criteria and is now the
+R and Python default. The paper also states the conditional latent-error law
+explicitly, distinguishes SUDO from existing logistic DML, and qualifies the
+black-box evidence by design.
+
+The principal unresolved issue is therefore inference for a cross-fitted
+machine-learning imputation model. The full-pipeline bootstrap remains an
+empirical result rather than a proved procedure, and fixed-imputation
+reference distributions and covariate-direction leakage still need formal
+treatment.
 
 The previous external assessment was useful mainly as an agenda check. It
 correctly identified several open areas already recorded in
@@ -35,11 +41,11 @@ independent review.
 
 ## Major findings
 
-### 1. State the identification assumptions as conditional laws
+### 1. Conditional-law identification assumptions are repaired
 
 The surrogate identity requires the latent-error distribution conditional on
 the observed design to agree with the assumed link law. The displayed model
-currently says
+previously said
 
 ```text
 epsilon ~ F
@@ -55,9 +61,8 @@ epsilon | D, X ~ F
 
 with the appropriate location, scale, and threshold normalization.
 
-The prose recognizes that the conditional law, not merely its mean, must be
-correct. The formal setup and Assumption A1 should say the same thing. The
-following components should be separated:
+The formal setup and Assumption A1 now state the conditional law and
+separate:
 
 1. latent ignorability or causal mean independence;
 2. the conditional location-family model for the latent error;
@@ -65,23 +70,17 @@ following components should be separated:
 4. a constant latent-scale treatment effect;
 5. threshold and scale normalization.
 
-This clarification is foundational. The identity
+This completed clarification is foundational. The identity
 `E[S | D, X] = E[U | D, X]`, the link diagnostic, and the truncation
 derivatives all depend on it.
 
-### 2. The claim that SUDO subsumes logistic DML is too strong
+### 2. The logistic-DML comparison is repaired
 
-The manuscript describes the logistic partially linear estimator of Liu,
-Zhang, and Zhou as a special case subsumed by SUDO. Both methods may target
-the same latent-logit coefficient, but the paper does not establish that the
-surrogate-completion estimator and the logistic orthogonal-score estimator
-are identical, asymptotically equivalent, or members of the same efficiency
-class.
-
-Unless that equivalence is proved, the paper should say that SUDO targets the
-same latent-scale parameter under the logit specification or provides a
-link-flexible alternative. This affects the abstract, introduction, and
-discussion.
+The manuscript no longer says that SUDO subsumes the logistic partially
+linear estimator of Liu, Zhang, and Zhou. It now says that the methods target
+the same latent-logit coefficient under the logit specification and presents
+SUDO as a link-flexible alternative. No estimator equivalence or common
+efficiency claim is made.
 
 ### 3. The black-box inference claim exceeds the evidence
 
@@ -97,18 +96,21 @@ The abstract and contributions should use design-specific language, such as:
 
 The discussion already contains much of the necessary qualification.
 
-### 4. The parametric theory is promising but not theorem-ready
+### 4. The machine-learning imputation theory is not theorem-ready
 
-The appendix appropriately describes its results as derivations with proof
-sketches and numerical verification. The remaining gaps include:
+The appendix appropriately describes its parametric results as derivations
+with proof sketches and numerical verification. Those formulas are useful as
+a special case and benchmark, but the methodological center of the paper is
+a cross-fitted flexible imputation index of the form
+`v(D, X) = alpha D + f(X)`. The missing result is a learner-class expansion
+for that estimator. The remaining gaps include:
 
-- the contribution of the full-sample imputation estimate in the
-  cross-fitted expansion;
+- an expansion of the residual-weighted, fold-specific imputation error;
 - uniform control of stochastic remainders;
 - conditional nuisance-rate requirements under bootstrap resampling;
 - differentiability of the generated-outcome map;
 - the correct fixed-imputation reference distribution;
-- the flexible per-fold imputation regime.
+- learner-specific stability conditions for the full-pipeline bootstrap.
 
 Tang and Westling provide general bootstrap conditions for asymptotically
 linear estimators with machine-learned nuisances
@@ -125,32 +127,24 @@ three-step semiparametric estimators
 path-derivative approach may help construct SUDO's influence-function
 expansion, but it is not itself a bootstrap theorem for SUDO.
 
-### 5. Ordinal over-coverage is the primary empirical gap
+### 5. Ordinal over-coverage is resolved
 
-The committed results confirm substantial conservatism:
+The original implementation confirmed substantial conservatism:
 
 - stage 4 reports coverage of 0.976;
 - stage 5 at `n = 2000` reports SD 0.110, mean SE 0.149, and coverage 0.985;
 - the internal Rubin checks report variance ratios of roughly 1.50 to 1.88.
 
-This is much larger than the 1 to 2 percent Rubin-variance discrepancy
-measured in the binary congenial testbed. The current evidence does not
-justify attributing it to uncongeniality, finite-sample GAM behavior, fixed
-imputations, or the threshold block alone.
+The ordinal term-level decomposition then ruled out threshold estimation and
+pooling alone. The paired nuisance ladder isolated reuse of one plug-in
+estimate of `E[S | X]` across completions: per-draw refitting left empirical
+variance nearly unchanged while reducing `T/V` from 1.505 to 0.942. The full
+corrected stage at `n = 2000`, `B = 25`, and 200 replications reports bias
+0.016, coverage 0.960, and `T/V = 1.214` with Monte Carlo SE 0.122. It passes
+all prespecified checks.
 
-The contrast already found in the repository is informative: ordinal
-designs over-cover while binary designs with the same covariate structure
-and nuisances under-cover. The ordinal effect also declines as signal grows.
-This makes the threshold and category machinery a natural place to
-investigate, but not a proven explanation.
-
-The multiple-imputation literature supports the manuscript's caution.
-Xie and Meng show that inference under uncongenial imputer and analyst
-procedures has a complex dependence on their relationship and on
-self-efficiency
-([Statistica Sinica 27, 1485-1594](https://doi.org/10.5705/ss.2014.067)).
-It does not support a generic claim that Rubin's variance safely overstates
-uncertainty here.
+The remaining sample-size and imputation-count grid belongs with the
+fixed-imputation investigation. It does not block the corrected default.
 
 ### 6. Fixed-imputation inference is both a contribution and an open issue
 
@@ -185,24 +179,6 @@ calculation isolates treatment-direction error, while the paper demonstrates
 that covariate-direction leakage can also be material. The paper should
 report the multiplier and either let readers assess plausibility or condition
 the conclusion explicitly on negligible covariate-direction misspecification.
-
-### 8. The novelty claim needs a reproducible literature search
-
-A broad search did not identify a direct competitor that combines ordinal
-latent-scale outcomes, DML partialling, surrogate completion, and
-multiple-imputation inference. That is encouraging but insufficient to prove
-priority.
-
-The internal novelty review should cover:
-
-- DML for ordinal outcomes;
-- debiased or orthogonal cumulative-link models;
-- semiparametric partially linear transformation models;
-- ordinal causal effects with machine-learned nuisances;
-- latent-variable and distribution-regression DML.
-
-Until this search is recorded, the paper should retain "to our knowledge"
-and avoid unqualified priority claims.
 
 ## Assessment of the previous external review
 
@@ -261,7 +237,7 @@ but they remain valid priorities.
 
 ## Prioritized plan
 
-### Phase 1: Isolate the ordinal variance anomaly
+### Phase 1: Reconcile the completed ordinal correction
 
 Status: the first isolation step is complete. The new
 `R/theory_ordinal_variance_terms.R` stage includes the threshold block and
@@ -282,44 +258,40 @@ Monte Carlo SE 0.122. It passes its bias, coverage, and variance-calibration
 criteria, so per-draw outcome-nuisance refitting is now the validated ordinal
 default.
 
-Remaining work is to characterize runtime and calibration across additional
-sample sizes and imputation counts. This no longer blocks the default change.
+Remaining work is to remove stale descriptions of the anomaly and to fold the
+additional sample-size and imputation-count grid into fixed-imputation work.
 
-This is the best first task because it is cheap, falsifiable, and central to
-the ordinal inference claim.
+### Phase 2: Compare structurally partially linear learners
 
-### Phase 2: Repair assumptions and claims in the paper
+Treat `v(D, X) = alpha D + f(X)` as the structural requirement, not
+PL-backfit as the method. Compare:
 
-Revise the manuscript without changing the method:
+- the existing logistic GAM with an unpenalized linear treatment term;
+- MARS with treatment forced linear and basis selection restricted to `X`;
+- the tuned PL-backfit already used by the full-pipeline bootstrap.
 
-- formalize the conditional latent-error law;
-- distinguish statistical identification from causal interpretation;
-- replace "subsumes" unless estimator equivalence is proved;
-- qualify black-box coverage claims by design;
-- narrow the wine sensitivity conclusion;
-- pair coverage claims with Monte Carlo uncertainty;
-- explain the two stage-3p coverage fields, since the committed summary
-  contains both 0.98 and 0.95.
+Use common samples, folds, seeds, and inference settings. Tune MARS on
+theta-level Monte Carlo performance and promote it only if it passes the same
+bias and coverage criteria as the existing default.
 
-Acceptance criterion: every statement in the abstract and contribution list
-is supported by a theorem, a named simulation cell, or an explicit empirical
-qualification.
+### Phase 3: Develop a learner-class asymptotic expansion
 
-### Phase 3: Complete the parametric asymptotic expansion
-
-Treat the parametric full-sample imputation model before attempting the
-cross-fitted black-box regime.
+Define the imputation estimator by fold-specific functions
+`v_hat[-k](D, X) = alpha_hat[-k] D + f_hat[-k](X)`, without requiring a
+finite-dimensional parameterization.
 
 Required deliverables:
 
 - a precise estimator definition including auxiliary randomness;
 - an influence-function expansion for fixed imputation count;
-- a lemma controlling the interaction of the full-sample imputation
-  estimator with cross-fitted adjustment nuisances;
+- a projected expansion for
+  `E[R {psi(v_hat) - psi(v0)}]`;
+- a lemma controlling its interaction with cross-fitted adjustment
+  nuisances;
 - uniform remainder conditions;
-- explicit threshold-parameter contributions;
 - a clear distinction between conditional-on-imputation and unconditional
-  laws.
+  laws;
+- the existing parametric formula as a special-case corollary.
 
 Acceptance criterion: a complete proof that does not assume the desired
 expansion or bootstrap consistency as a hypothesis.
@@ -337,7 +309,9 @@ Questions to settle:
 - whether common random numbers give a useful smooth representation away
   from probability boundaries;
 - whether redrawn folds are necessary or only sufficient;
-- what the bootstrap target is when the imputation count is fixed.
+- what the bootstrap target is when the imputation count is fixed;
+- which projected-error stability conditions hold for GAM, MARS, and
+  PL-backfit.
 
 Acceptance criteria:
 
@@ -372,23 +346,21 @@ experiment.
 
 After the inferential work:
 
-- test MARS as another partially linear full model;
 - retune XGBoost using target-level Monte Carlo performance;
 - measure the effective treatment-direction error directly across learners;
-- record the systematic novelty search;
 - leave multinomial outcomes as a separate project.
 
 ## Recommended execution order
 
 The immediate sequence should be:
 
-1. ordinal term-level decomposition;
-2. paper-level assumption and claim repairs;
-3. parametric asymptotic expansion;
-4. full-pipeline bootstrap proof;
-5. fixed-imputation reference law;
-6. misspecification bound;
-7. secondary learners and extensions.
+1. reconcile the completed ordinal correction and remaining paper claims;
+2. compare GAM, MARS, and PL-backfit under a common design;
+3. develop the learner-class asymptotic expansion;
+4. prove or narrow the full-pipeline bootstrap result;
+5. derive the fixed-imputation reference law;
+6. bound covariate-direction leakage;
+7. leave other learners and extensions as secondary work.
 
 This order gives the fastest opportunity either to validate the current
 inferential account or to identify precisely where the estimator, variance,

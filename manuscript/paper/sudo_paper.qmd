@@ -530,8 +530,8 @@ knitr::kable(tab, align = c("l", "r", "r", "r", "r"))
 **Ordinal outcomes.** With a three-category outcome and machine-learning
 adjustment, SUDO is essentially unbiased with valid-to-conservative
 coverage (@tbl-ordinal), a regime for which we are aware of no DML
-competitor. We do not yet have a complete explanation for the conservatism.
-A term-level ordinal decomposition includes the threshold block and matches
+competitor. The original implementation was substantially conservative. A
+term-level ordinal decomposition includes the threshold block and matches
 Monte Carlo throughout a clean cumulative-logit testbed. It predicts only
 2.8% variance overstatement at moderate signal and 2.0% understatement at
 strong signal, so threshold estimation and ordinal pooling alone cannot
@@ -544,7 +544,8 @@ $B=25$ and 200 replications has bias 0.016, coverage 0.960, and $T/V=1.214$
 with Monte-Carlo standard error 0.122. Per-draw refitting is therefore the
 validated ordinal procedure, at the cost of fitting the outcome nuisance
 $B$ times rather than once.
-Rubin's
+The residual variance ratio is compatible with one at this simulation's
+precision and is not evidence of a remaining ordinal anomaly. Rubin's
 variance is guaranteed to err safe only under conditions we have not
 verified here (a valid imputation model together with a self-efficient
 complete-data analysis), and under uncongeniality it can be biased in
@@ -592,9 +593,11 @@ linear, with treatment-direction slope matching the derived $\bar c_1$
 
 **Black-box imputation models.** A tuned partially-linear imputation model
 is unbiased at both effect sizes; pairing it with the full-pipeline
-bootstrap brings coverage at the strong effect from 0.86 to 0.95
-(percentile interval, 100 replications, so coverage is resolved to about
-$\pm 0.03$), with the reported SE matching the true variability.
+bootstrap brings coverage at the strong effect from 0.86 to 0.98 for the
+normal interval and 0.95 for the percentile interval. The latter is the
+coverage claim used here. With 100 replications, either coverage estimate has
+Monte Carlo uncertainty of about $\pm 0.03$; the bootstrap SD also matches
+the estimator's run-to-run variability at this resolution.
 
 **Continuous treatment, and other variations.** The designs above all use a
 binary treatment, while the application below does not, so we check the
@@ -717,9 +720,10 @@ $E[c(\eta) D R]/E[R^2]$ and the general-$J$ pass-through of Proposition A1
 gives $\bar c_1 = 0.21$ (red) and $0.17$ (white). The cumulative-link model
 would therefore have to be wrong about volatile acidity by $+2.55$ and
 $+2.38$ respectively, which is 4.2 and 4.8 times the coefficient it actually
-fits. An error of that size in a correctly-linked parametric model on a
-standardized predictor is not credible, so the finding is robust in this
-direction.
+fits. This calculation addresses treatment-direction error only. Conditional
+on covariate-direction misspecification being negligible, it shows that a
+large treatment-coefficient error would be required to erase the estimate;
+it does not establish robustness to general imputation-model error.
 
 Two things make it so, and both are worth noting because they are properties
 of the design rather than luck. The pass-through is small, near $0.2$ rather
