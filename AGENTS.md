@@ -33,6 +33,7 @@ Rscript R/stage2_binary_rubin.R        # Rubin pooling: naive vs improper vs pro
 Rscript R/stage3_binary_dml.R          # full binary SUDO, ML nuisances (parallel, ~10 min)
 Rscript R/stage3m_pl_backfit_tuning.R  # tuned partially-linear backfit (bias fix)
 Rscript R/stage3p_pipeline_bootstrap.R # full-pipeline bootstrap (SE fix, black-box model)
+Rscript R/stage3s_pl_learners.R        # GAM, MARS, and PL-backfit comparison
 Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal, spline clm, gam nuisances (parallel)
 Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
@@ -115,9 +116,10 @@ repository root.
   theta-level Monte-Carlo validation is therefore not optional for a
   black-box imputation model; no cheap diagnostic reliably predicts its bias.
 - **Partially-linear (PL) full models beat every diagnostic-driven fix**
-  (stages 3j to 3l): forcing `V = beta*D + f(X)` so `D` cannot interact with
-  `X`. Backfitting (IRLS, `f` via `nnet`) is the strongest result of the
-  black-box program. A "principled" cross-validation tuning procedure can be
+  (stages 3j to 3s): forcing `V = alpha*D + f(X)` so `D` cannot interact with
+  `X`. GAM, MARS, and neural backfitting all pass the common stage-3s
+  validation, so the structural learner class is the result, not one fitting
+  algorithm. A "principled" cross-validation tuning procedure can be
   actively harmful if it optimizes the wrong objective (mboost's `cvrisk`
   minimizes deviance, not D-coefficient bias, and is the worst arm): any
   tuning search must select on theta-level MC performance directly.
@@ -130,11 +132,11 @@ repository root.
   deterministic; this, not quasi-separation, is why every learner degrades at
   theta = 3. The X-direction is not fully protected either (`S` is nonlinear
   in `V_hat`), only small here.
-- **A black-box imputation model can give valid inference.** Two pieces: the
-  tuned PL-backfit (stage 3m, `size=4, decay=0.3, n_iter=5`, selected on MC
-  theta bias) fixes the bias; the full-pipeline bootstrap
+- **A black-box imputation model can give valid inference.** Two pieces: a
+  validated PL learner fixes the bias; the full-pipeline bootstrap
   (`sudo_pipeline_boot`, stage 3p) fixes the SE (theta = 3 coverage 0.860 to
-  0.95). A recentered within-fold bootstrap under-propagates full-model
+  0.95 for the percentile interval). Stage 3s confirms the result with GAM,
+  MARS, and tuned PL-backfit. A recentered within-fold bootstrap under-propagates full-model
   variance; resampling the whole dataset and rerunning the pipeline captures
   it.
 - **Watch the calibration-slope direction.** Stages 3g and 3j to 3l regress

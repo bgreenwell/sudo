@@ -422,10 +422,12 @@ treatment-direction error $\delta_D$ (a bias problem), and it has no
 covariance matrix from which to draw (an inference problem).
 
 The bias is addressed by a *partially-linear* imputation model,
-$\hat V = \hat\beta D + \hat f(X)$, in which the treatment enters linearly
+$\hat V = \hat\alpha D + \hat f(X)$, in which the treatment enters linearly
 and machine learning handles only $X$, so no treatment-by-covariate
-artifact can arise. Fitting $\hat f$ by backfitting a flexible learner is
-unbiased across effect sizes in our experiments. The inference problem is
+artifact can arise. This is a structural learner class, not a commitment to
+one training algorithm. We implement it with a GAM, MARS bases followed by a
+joint logistic fit, and neural-network backfitting. All three are unbiased
+across effect sizes in the common comparison in @sec-sims. The inference problem is
 addressed by a *full-pipeline bootstrap*, the nonparametric counterpart of
 the proper draw: where a parametric model injects imputation-model
 uncertainty by sampling $\beta$ from its covariance, here we resample the
@@ -591,13 +593,45 @@ linear, with treatment-direction slope matching the derived $\bar c_1$
 
 : Nuisance-sensitivity ladder. {#tbl-sensitivity}
 
-**Black-box imputation models.** A tuned partially-linear imputation model
+**Partially-linear imputation learners.** A tuned partially-linear backfit
 is unbiased at both effect sizes; pairing it with the full-pipeline
 bootstrap brings coverage at the strong effect from 0.86 to 0.98 for the
 normal interval and 0.95 for the percentile interval. The latter is the
 coverage claim used here. With 100 replications, either coverage estimate has
 Monte Carlo uncertainty of about $\pm 0.03$; the bootstrap SD also matches
 the estimator's run-to-run variability at this resolution.
+
+Backfitting is not essential. A common-sample comparison fits the same
+$\alpha D + f(X)$ structure three ways: a GAM with a linear treatment term,
+MARS bases constructed from $X$ only followed by a joint logistic fit with
+mandatory linear $D$, and the tuned neural-network backfit. The MARS
+configuration is selected on theta-level Monte Carlo bias, not predictive
+GCV. All three pass the prespecified bias and percentile-coverage criteria
+(@tbl-pl-learners). With 50 replications, these coverage cells have Monte
+Carlo standard errors of roughly 0.02 to 0.05, so their small differences do
+not rank the learners.
+
+```{r}
+#| label: tbl-pl-learners
+#| echo: false
+#| tbl-cap: "Partially-linear imputation learners with full-pipeline bootstrap, $n=2000$, 50 replications, 50 outer resamples, and 15 surrogate completions per resample."
+s3s <- rd("stage3s_summary.csv")
+learner_name <- c(
+  pl_gam = "GAM",
+  pl_mars = "MARS",
+  pl_backfit = "Neural backfit"
+)
+tab <- data.frame(
+  Learner = unname(learner_name[s3s$learner]),
+  `$\\theta_0$` = nn(s3s$theta, 1),
+  Bias = sg(s3s$bias),
+  `SD/Mean SE` = nn(s3s$sd_over_mean_se),
+  `Normal coverage` = nn(s3s$coverage_normal),
+  `Percentile coverage` = nn(s3s$coverage_percentile),
+  check.names = FALSE
+)
+knitr::kable(tab, align = c("l", "r", "r", "r", "r", "r"))
+```
 
 **Continuous treatment, and other variations.** The designs above all use a
 binary treatment, while the application below does not, so we check the
@@ -764,8 +798,8 @@ rests on simulation evidence, and the appendix covers only the parametric
 imputation model fit once on all the data, not the cross-fit flexible regime
 the machine-learning designs use. SUDO is therefore best read as a
 simulation-supported estimator with a worked-out first-order theory, not a
-fully proven inferential procedure. Extending the black-box results beyond the two
-data-generating processes studied, and to unordered (multinomial)
+fully proven inferential procedure. Extending the machine-learning results
+beyond the data-generating structures studied, and to unordered (multinomial)
 outcomes, which require a vector surrogate and have no single scalar
 effect, are natural next steps. A Bayesian ensemble imputation model, whose
 posterior draws are literal proper imputations, is the tidiest candidate for
@@ -1143,6 +1177,7 @@ All designs instantiate @eq-dgp with one of two covariate structures:
 | Link misspecification | S1 | Gumbel | $(0)$ or $(0, 2)$ | 1.0 | 5000 | 200 |
 | Sensitivity (@tbl-sensitivity) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 200 |
 | Black-box imputation | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 100 |
+| PL learner comparison (@tbl-pl-learners) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 50 |
 | Bayesian imputation (repository only) | S5$'$ | normal | $(0)$ | 1.5, 3 | 2000 | 200 |
 | DGP variation, continuous $D$ | S5, $D = 0.7\pi(X) + N(0,1)$ | logistic | $(0)$ or $(0, 2)$ | 1, 2.5 | 2000 | 200 |
 | DGP variation, interaction | S5 plus $X_1 X_2$ in $g_0$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
@@ -1183,11 +1218,17 @@ four are comparable. The fitted SUDO-D slope reproduces $\bar c_1$ (0.669 at
 $\theta_0 = 1.5$, 0.861 at $\theta_0 = 3$) to within 0.001, which is the
 independent check on @eq-ce.
 
-**Black-box imputation model.** Imputation model is a partially-linear
-backfit $\hat V = \hat\beta D + \hat f(X)$ with $\hat f$ a single-hidden-layer
+**Partially-linear imputation models.** The original black-box result uses
+$\hat V = \hat\alpha D + \hat f(X)$ with $\hat f$ a single-hidden-layer
 neural net (`nnet`, `size = 4`, `decay = 0.3`, five backfitting iterations,
-selected on theta-level MC bias). Standard errors from the full-pipeline
-bootstrap with 100 data set resamples.
+selected on theta-level MC bias) and 100 full-pipeline bootstrap resamples.
+The common learner comparison uses 50 resamples for each arm. Its GAM has an
+unpenalized linear treatment term and smooths of the five covariates. Its
+MARS fit builds degree-two bases from $X$ only (`nk = 21`, penalty 3), then
+jointly estimates those basis coefficients and a mandatory linear treatment
+coefficient by logistic regression. This construction is needed because
+`earth::linpreds` alone still permits the named predictor in interaction
+terms.
 
 **Wine application.** Full model `ordinal::clm` on $D$ and either the raw
 covariates (linear) or $\mathrm{ns}(X_k, 3)$ (spline); partialling nuisances

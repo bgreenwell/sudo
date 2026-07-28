@@ -1,10 +1,35 @@
-# Partially-linear (PL) full models: V = beta*D + f(X), D structurally
-# forbidden from interacting with X, three different ways. Each fitter
+# Partially-linear (PL) full models: V = alpha*D + f(X), D structurally
+# forbidden from interacting with X, five different ways. Each fitter
 # returns the same list(lp_hat, fit_fold, to_lp) shape fit_blackbox_index()
 # does, so sudo_binary()'s dispatch, nuisance fitting, recentered-bootstrap
 # draws, and Rubin pooling work unchanged for all three.
-# Requires ranger, nnet, xgboost, mboost available; fwl.R/estimator.R
+# Requires earth, ranger, nnet, xgboost, mboost available; fwl.R/estimator.R
 # sourced first (uses make_folds, recal_iso is unused here).
+
+# ---- (0) native GAM: parametric D plus smooths of X -----------------------
+#
+# This is the same structural model used by crossfit_fullmodel_gam(), exposed
+# through the black-box fitter contract so a full-pipeline bootstrap can refit
+# it without also injecting coefficient draws inside each resample.
+fit_pl_gam <- function(d, folds, method = "GCV.Cp") {
+  X <- as.data.frame(d$X)
+  n <- nrow(X)
+  dat <- data.frame(Y = d$Y, D = d$D, X)
+  rhs <- paste(c("D", sprintf("s(%s)", colnames(X))), collapse = " + ")
+  fml <- as.formula(paste("Y ~", rhs))
+
+  fit_fold <- function(train_idx, test) {
+    m <- mgcv::gam(fml, family = binomial, data = dat[train_idx, , drop = FALSE],
+                   method = method)
+    as.numeric(predict(m, newdata = dat[test, , drop = FALSE],
+                       type = "response"))
+  }
+
+  to_lp <- function(p) qlogis(pmin(pmax(p, 1e-5), 1 - 1e-5))
+  p_hat <- numeric(n)
+  for (test in folds) p_hat[test] <- fit_fold(setdiff(seq_len(n), test), test)
+  list(lp_hat = to_lp(p_hat), fit_fold = fit_fold, to_lp = to_lp)
+}
 
 # ---- (1) backfitting GPLM: IRLS + black-box smoother for f(X) ------------
 #
@@ -13,7 +38,7 @@
 # fit, regress (working response - beta*D) on X with the black-box
 # learner (weighted) to update f, then weighted-LS update beta from
 # (working response - f). engine = "nnet" (default: the untuned/flexible
-# decay=0.01 config that produced stage 3f's worst bias — the sharpest
+# decay=0.01 config that produced stage 3f's worst bias, the sharpest
 # test of whether PL structure alone rescues it) or "ranger".
 fit_pl_backfit <- function(d, folds, engine = c("nnet", "ranger"),
                            nn_size = 8, nn_decay = 0.01, n_iter = 5,
@@ -112,10 +137,10 @@ fit_pl_xgboost <- function(d, folds, max_depth = 4, eta = 0.1,
 # (ordinary-least-squares) base-learner, each X_j its own P-spline
 # base-learner. No interaction base-learner exists in the formula, so D
 # structurally cannot pick up interaction effects regardless of mstop.
-# mstop chosen via cvrisk() once per fold (not per bootstrap draw — see
+# mstop chosen via cvrisk() once per fold (not per bootstrap draw, see
 # stage3l timing note) unless too expensive, in which case a fixed
 # generous mstop is used (documented, not silent).
-# Note: "beyond boundary.knots" warnings are expected and benign — a
+# Note: "beyond boundary.knots" warnings are expected and benign. A
 # fold's held-out X sometimes falls outside the training spline knot
 # range; mboost linearly extrapolates, which is standard practice.
 fit_pl_mboost <- function(d, folds, use_cvrisk = TRUE, fixed_mstop = 200) {
@@ -148,13 +173,56 @@ fit_pl_mboost <- function(d, folds, use_cvrisk = TRUE, fixed_mstop = 200) {
   list(lp_hat = to_lp(p_hat), fit_fold = fit_fold, to_lp = to_lp)
 }
 
+# ---- (4) MARS basis for X plus a mandatory linear D coefficient -----------
+#
+# earth::linpreds makes a predictor linear but still permits that predictor
+# inside interaction terms. That is not the restriction needed here. Instead,
+# earth selects a basis from X alone, and a binomial GLM jointly estimates an
+# unpenalized D coefficient and the selected X-basis coefficients. Thus D is
+# present in every fold and cannot occur in a hinge or interaction basis.
+fit_pl_mars <- function(d, folds, degree = 2, nk = 41, penalty = 3) {
+  X <- as.data.frame(d$X)
+  n <- nrow(X)
+
+  fit_fold <- function(train_idx, test) {
+    mars <- earth::earth(
+      x = X[train_idx, , drop = FALSE], y = d$Y[train_idx],
+      degree = degree, nk = nk, penalty = penalty,
+      glm = list(family = binomial), keepxy = TRUE)
+    bx_tr <- stats::model.matrix(mars, x = X[train_idx, , drop = FALSE])
+    bx_te <- stats::model.matrix(mars, x = X[test, , drop = FALSE])
+    # earth's first basis column is the intercept. glm.fit receives its own
+    # explicit intercept followed by mandatory D and the selected X bases.
+    x_tr <- cbind(`(Intercept)` = 1, D = d$D[train_idx],
+                  bx_tr[, -1, drop = FALSE])
+    x_te <- cbind(`(Intercept)` = 1, D = d$D[test],
+                  bx_te[, -1, drop = FALSE])
+    g <- glm.fit(x = x_tr, y = d$Y[train_idx], family = binomial())
+    coefficients <- g$coefficients
+    coefficients[is.na(coefficients)] <- 0
+    eta <- as.numeric(x_te %*% coefficients)
+    plogis(eta)
+  }
+
+  to_lp <- function(p) qlogis(pmin(pmax(p, 1e-5), 1 - 1e-5))
+  p_hat <- numeric(n)
+  for (test in folds) p_hat[test] <- fit_fold(setdiff(seq_len(n), test), test)
+  list(lp_hat = to_lp(p_hat), fit_fold = fit_fold, to_lp = to_lp,
+       treatment_basis_degree = 1L)
+}
+
 # unified dispatcher used by the stage 3j/3k/3l diagnostic scripts (index
 # calibration, variance ratio) so they can call any PL variant uniformly
-fit_pl <- function(d, folds, variant = c("backfit", "xgboost", "mboost"),
-                   pl_engine = "nnet", pl_use_cvrisk = TRUE) {
+fit_pl <- function(d, folds,
+                   variant = c("gam", "backfit", "xgboost", "mboost", "mars"),
+                   pl_engine = "nnet", pl_use_cvrisk = TRUE,
+                   mars_degree = 2, mars_nk = 41, mars_penalty = 3) {
   variant <- match.arg(variant)
   switch(variant,
+        gam = fit_pl_gam(d, folds),
         backfit = fit_pl_backfit(d, folds, engine = pl_engine),
         xgboost = fit_pl_xgboost(d, folds),
-        mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk))
+        mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk),
+        mars = fit_pl_mars(d, folds, degree = mars_degree, nk = mars_nk,
+                           penalty = mars_penalty))
 }

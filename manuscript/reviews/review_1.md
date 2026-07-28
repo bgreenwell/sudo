@@ -84,10 +84,10 @@ efficiency claim is made.
 
 ### 3. The black-box inference claim exceeds the evidence
 
-The paper states that a partially linear machine-learning imputation model
-and a full-pipeline bootstrap attain nominal coverage. The repository
-supports that statement in the black-box designs studied, with 100 outer
-replications. It does not yet support a general validity claim.
+The paper states that partially linear machine-learning imputation models
+and a full-pipeline bootstrap attain nominal coverage. The repository now
+supports that statement for GAM, MARS, and neural backfitting in the designs
+studied. It does not yet support a general validity claim.
 
 The abstract and contributions should use design-specific language, such as:
 
@@ -226,9 +226,11 @@ but they remain valid priorities.
    without evidence. The repository's tuning-quality hypothesis is more
    defensible and directly testable.
 
-7. **MARS support.** The cited continuous-treatment DML material does not
-   validate the proposed `earth::linpreds` implementation. MARS should be
-   treated as an experimental backlog item.
+7. **MARS support.** The cited continuous-treatment DML material did not
+   validate the proposed `earth::linpreds` implementation, and inspection
+   showed that `linpreds` alone still permits treatment interactions. The
+   validated implementation instead builds bases from `X` only and estimates
+   a mandatory linear treatment coefficient in a joint logistic fit.
 
 8. **Source quality.** ResearchGate pages, Medium posts, software
    documentation, unrelated applications, and a CRAN task view are not
@@ -262,6 +264,15 @@ Remaining work is to remove stale descriptions of the anomaly and to fold the
 additional sample-size and imputation-count grid into fixed-imputation work.
 
 ### Phase 2: Compare structurally partially linear learners
+
+Status: complete. `R/stage3s_pl_learners.R` compares GAM, MARS, and the tuned
+PL-backfit on common data-generating seeds. MARS is tuned on theta-level
+Monte Carlo bias and mechanically excludes treatment from its adaptive
+basis. All three pass the bias and percentile-coverage criteria. At
+$\theta_0=3$, their biases are 0.043, -0.010, and 0.007, respectively, and
+their SD/mean-SE ratios are 0.960, 0.945, and 0.998. The comparison therefore
+supports the partially-linear learner class rather than a unique backfitting
+implementation.
 
 Treat `v(D, X) = alpha D + f(X)` as the structural requirement, not
 PL-backfit as the method. Compare:

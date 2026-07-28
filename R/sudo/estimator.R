@@ -54,7 +54,7 @@ fit_blackbox_index <- function(d, full_model = c("ranger", "nnet"),
       predict(m, data = feat[test, , drop = FALSE])$predictions[, "1"]
     }
   } else {
-    # smooth black-box: single-hidden-layer net with logistic output —
+    # smooth black-box: single-hidden-layer net with logistic output,
     # estimates the log-odds surface directly, avoiding the forest's
     # piecewise-constant index attenuation
     function(train_idx, test) {
@@ -89,13 +89,14 @@ fit_blackbox_index <- function(d, full_model = c("ranger", "nnet"),
 # fitter(X, y) -> function(Xnew) contract from crossfit().
 sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
                         full_model = c("gam", "ranger", "nnet",
-                                      "pl_backfit", "pl_xgboost",
-                                      "pl_mboost"),
+                                      "pl_gam", "pl_backfit", "pl_xgboost",
+                                      "pl_mboost", "pl_mars"),
                         include_D = TRUE,
                         refit_S_nuisance = FALSE, proper_boot = FALSE,
                         recalibrate = FALSE, nn_size = 8, nn_decay = 0.01,
                         pl_engine = "nnet", pl_use_cvrisk = TRUE,
-                        pl_n_iter = 5, link = "logit",
+                        pl_n_iter = 5, mars_degree = 2, mars_nk = 41,
+                        mars_penalty = 3, link = "logit",
                         fit_l = fit_gam, fit_m = fit_gam_binomial) {
   if (is.character(full_model)) full_model <- match.arg(full_model)
   # the full model's index and the surrogate's error law must share a scale.
@@ -141,20 +142,24 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
   } else if (full_model == "gam") {
     fm <- crossfit_fullmodel_gam(d$Y, d$D, d$X, folds, include_D)
   } else {
-    # every non-gam full model (ranger/nnet, and the three partially-linear
+    # every non-gam full model (ranger/nnet and the partially-linear
     # fitters) returns the same list(lp_hat, fit_fold, to_lp) shape, so the
     # bootstrap/improper draw logic below is written once and shared
     bb <- switch(full_model,
                 ranger = ,
                 nnet   = fit_blackbox_index(d, full_model, include_D, folds,
                                             recalibrate, nn_size, nn_decay),
+                pl_gam = fit_pl_gam(d, folds),
                 pl_backfit = fit_pl_backfit(d, folds, engine = pl_engine,
                                             nn_size = nn_size,
                                             nn_decay = nn_decay,
                                             n_iter = pl_n_iter,
                                             link = link),
                 pl_xgboost = fit_pl_xgboost(d, folds),
-                pl_mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk))
+                pl_mboost  = fit_pl_mboost(d, folds,
+                                           use_cvrisk = pl_use_cvrisk),
+                pl_mars = fit_pl_mars(d, folds, degree = mars_degree,
+                                      nk = mars_nk, penalty = mars_penalty))
     fit_fold <- bb$fit_fold
     to_lp <- bb$to_lp
     lp_hat <- bb$lp_hat

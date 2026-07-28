@@ -76,6 +76,7 @@ Rscript R/stage0_fwl.R                 # FWL exactness; cross-fit PLR sanity
 Rscript R/stage1_binary_surrogate.R    # binary surrogate FWL, single draw
 Rscript R/stage2_binary_rubin.R        # Rubin pooling: naive vs improper vs proper MI
 Rscript R/stage3_binary_dml.R          # full binary SUDO with ML nuisances
+Rscript R/stage3s_pl_learners.R        # partially-linear learner comparison
 Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal with flexible nuisances
 Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
