@@ -18,7 +18,7 @@ author:
 authorcols: true
 date: today
 abstract: |
-  Double Machine Learning (DML) delivers root-$n$ consistent, asymptotically normal causal estimates by pairing Neyman-orthogonal scores with cross-fitting, but its partially linear model is confined to continuous outcomes. Binary outcomes are served only by a logit-hardwired logistic estimator; ordinal outcomes by no DML method we are aware of. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a categorical response as missing data and fills it in: each observation is completed to a continuous *surrogate* drawn from the assumed error distribution, truncated to the interval the observed category implies, after which ordinary partialling-out applies. The completions are multiple imputations, and pooling them by Rubin's rules is what restores nominal coverage, but only when the draws are *proper*, redrawing the imputation model's parameters (thresholds included) before each draw; naive and improper draws demonstrably under-cover. The method is link-flexible and the surrogate residuals double as a link diagnostic. We further give a closed-form account of how imputation-model error reaches the target: it passes through a truncation factor that rises from about 0.3 to 1 as the signal strengthens, so the imputation model's error is first-order, not the second-order nuisance error of standard DML. In the black-box designs studied, a partially-linear machine-learning imputation model with a full-pipeline bootstrap attains nominal coverage. We illustrate on wine-quality data, estimating the effect of volatile acidity on an ordinal quality score.
+  Double Machine Learning (DML) delivers root-$n$ consistent, asymptotically normal causal estimates by pairing Neyman-orthogonal scores with cross-fitting, but its partially linear model is confined to continuous outcomes. Binary outcomes are served only by a logit-hardwired logistic estimator; ordinal outcomes by no DML method we are aware of. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a categorical response as missing data and fills it in: each observation is completed to a continuous *surrogate* drawn from the assumed error distribution, truncated to the interval the observed category implies, after which ordinary partialling-out applies. The completions are multiple imputations, and pooling them by Rubin's rules is what restores nominal coverage, but only when the draws are *proper*, redrawing the imputation model's parameters (thresholds included) before each draw; naive and improper draws demonstrably under-cover. The method is link-flexible and the surrogate residuals double as a link diagnostic. We further give a closed-form account of how imputation-model error reaches the target: it passes through a truncation factor that rises from about 0.3 to 1 as the signal strengthens, so the imputation model's error is first-order, not the second-order nuisance error of standard DML. In the machine-learning designs studied, GAM, MARS, and neural-backfit imputation learners paired with a full-pipeline bootstrap attain nominal coverage. We illustrate on wine-quality data, estimating the effect of volatile acidity on an ordinal quality score.
 format:
   arxiv-pdf:
     keep-tex: false
@@ -83,8 +83,9 @@ application fails.
 3. A closed-form analysis of how imputation-model error propagates to the
    effect, revealing a *first-order* sensitivity absent from standard DML,
    confirmed by a direct perturbation experiment.
-4. A route to nominal coverage with black-box machine-learning imputation
-   models, via a partially-linear structure and a full-pipeline bootstrap.
+4. A route to nominal coverage with machine-learning imputation models, via
+   a partially-linear structure, three validated learners, and a
+   full-pipeline bootstrap.
 5. An application to wine quality, an ordinal latent-scale estimand for
    which we are aware of no existing DML estimator.
 
@@ -793,10 +794,10 @@ attains nominal coverage throughout our experiments.
 Several problems remain open, and we are explicit about what @sec-theory does
 and does not settle. Its results are derivations with numerical
 verification rather than fully discharged theorems: the regularity conditions
-are stated but not minimized, the treatment-in-imputation-model step still
-rests on simulation evidence, and the appendix covers only the parametric
-imputation model fit once on all the data, not the cross-fit flexible regime
-the machine-learning designs use. SUDO is therefore best read as a
+are stated but not minimized, and Theorem M1 places a high-level
+asymptotic-linearity condition on the projected machine-learning imputation
+error rather than proving it separately for GAM, MARS, or neural backfitting.
+SUDO is therefore best read as a
 simulation-supported estimator with a worked-out first-order theory, not a
 fully proven inferential procedure. Extending the machine-learning results
 beyond the data-generating structures studied, and to unordered (multinomial)
@@ -834,8 +835,8 @@ fully discharged theorems: proofs are given as sketches and the regularity
 conditions are stated without being minimized. Every closed-form expression
 below is checked numerically in the project repository, against numerical
 differentiation for the pass-through derivatives and against Monte Carlo for
-the variance decomposition, and we flag in place the two points where the
-argument is incomplete.
+the variance decomposition, and we flag unresolved learner-specific
+conditions in place.
 
 ## Notation and assumptions
 
@@ -892,12 +893,14 @@ unnormalized matrix would inject variance that does not vanish with $n$.
 
 **Scope.** (A2) describes the parametric case: one regular maximum-likelihood
 fit on all the data, with a covariance to draw from. That is what the ordinal
-designs and the wine application use, and it is the setting the results below
-cover. It does not describe a cross-fit flexible imputation model, whose
-index is assembled from per-fold fits with no single $\hat\beta$ and no
-covariance of the required form. The binary machine-learning design and the
-black-box program are therefore outside this appendix, and we report them
-empirically rather than claiming the theory extends to them.
+designs and the wine application use. Theorem M1 below separately treats a
+cross-fitted flexible imputation index without requiring a single
+$\hat\beta$ or a covariance matrix. Its key condition is an asymptotically
+linear residual-weighted projection of the fitted index error. This is a
+learner-level condition, not a consequence of cross-fitting or structural
+partial linearity alone. We verify the generated-outcome linearization for
+the three implemented learners, but do not claim that their projected
+functional condition has been proved.
 
 ## The pass-through map for general $J$
 
@@ -967,6 +970,79 @@ Since $f(-e) = f(e) = p(1-p)$ for the logistic, the factor cancels exactly in
 cancellation is what makes the self-correction *equal* to the outcome's
 entropy rather than merely proportional to something like it.
 
+## Cross-fitted partially linear imputation learners
+
+The machine-learning estimator has no finite-dimensional $\beta$. Partition
+the observations into fixed-$K$ folds $I_k$. For $i\in I_k$, fit on
+$I_k^c$ an index
+$$\hat v_{-k}(D,X)=\hat\alpha_{-k}D+\hat f_{-k}(X),$$
+and form $B$ completions using independent auxiliary uniforms. Let
+$v_0(D,X)=\theta_0D+g_0(X)$ and define the conditional generated-outcome
+error
+$$\Delta_k(D,X)
+=\psi\{\hat v_{-k}(D,X);v_0(D,X)\}-v_0(D,X).$$ {#eq-ml-delta}
+For ordinal outcomes the thresholds are additional arguments of $\psi$; the
+result below concerns the scalar-index contribution and therefore applies
+directly to the binary machine-learning implementation.
+
+We use four learner-class conditions. **(M1)** Conditional on its training
+sample, each $\hat v_{-k}$ is $L_2$ consistent and the Taylor remainder obeys
+$$\sqrt n\sum_k\frac{|I_k|}{n}
+E\!\left[|R|\{\hat v_{-k}(D,X)-v_0(D,X)\}^2\mid I_k^c\right]=o_p(1).$$
+**(M2)** The residual-weighted projected error has an asymptotically linear
+representation for some mean-zero, square-integrable $\rho(W)$,
+$$\sqrt n\sum_k\frac{|I_k|}{n}E[R\Delta_k(D,X)\mid I_k^c]
+=\frac1{\sqrt n}\sum_{i=1}^n\rho(W_i)+o_p(1).$$ {#eq-ml-projection}
+**(M3)** The cross-fitted adjustment nuisances satisfy (A3), including after
+replacing the oracle completion by the fitted completion, and their
+interactions with $\hat v_{-k}-v_0$ are $o_p(n^{-1/2})$. **(M4)** The
+pass-through map is twice continuously differentiable on a neighbourhood
+reached with probability tending to one, with a dominated second derivative;
+the auxiliary uniforms are independent of the sample and one another.
+
+Condition (M2) is the substantive imputation-learner requirement. Prediction
+consistency alone does not imply it because the imputation model is outside
+the orthogonality guarantee. For the partially linear class, its first-order
+left side is
+$$E\!\left[R c(v_0)
+\left\{(\hat\alpha-\theta_0)D+\hat f(X)-g_0(X)\right\}\right],$$ {#eq-ml-first}
+up to fold averaging. The treatment-coefficient error and the flexible
+$X$-direction error both enter at first order. The latter need not vanish:
+$R$ is orthogonal to functions of $X$, but $R c(v_0)$ generally is not.
+
+**Theorem M1.** *Under (A1) and (M1)-(M4), with fixed $K$ and fixed $B$,*
+$$\sqrt n(\hat\theta_B-\theta_0)
+=J_\theta^{-1}\frac1{\sqrt n}\sum_{i=1}^n
+\left[e_iR_i+\rho(W_i)+R_i\bar u_i\right]+o_p(1),\qquad
+\bar u_i=B^{-1}\sum_{b=1}^B u_i^{(b)},$$ {#eq-ml-expansion}
+*and hence*
+$$\sqrt n(\hat\theta_B-\theta_0)\ \to_d\
+N(0,V_B^{\mathrm{ML}}),\qquad
+V_B^{\mathrm{ML}}=J_\theta^{-2}
+\left\{\operatorname{Var}(eR+\rho(W))+\frac{\sigma_u^2}{B}\right\}.$$ {#eq-ml-vb}
+
+*Sketch.* Conditional on the training sample for fold $k$, Taylor-expand
+@eq-ml-delta at $v_0$. Proposition A1 gives the linear term in
+@eq-ml-first, while (M1) and (M4) control the quadratic remainder.
+Cross-fitting makes the empirical fluctuation of the vanishing index error
+$o_p(1)$; (M2) supplies the first-order training-sample contribution.
+Neyman orthogonality and (M3) remove the adjustment-nuisance terms. At the
+truth the completion error is $e_i+u_i^{(b)}$, so averaging the $B$
+completions leaves $\bar u_i$ with conditional variance
+$\sigma_u^2/B$. A joint central limit theorem gives @eq-ml-expansion and
+@eq-ml-vb. The law is unconditional over both the observed sample and the
+auxiliary uniforms. Conditional on the observed sample, the uniforms describe
+imputation Monte Carlo error, not repeated-sample uncertainty. $\square$
+
+The parametric expression is a corollary, not the organizing case. If
+$\hat v=v(\hat\beta)$ is regular, then
+$\rho(W)=G'\operatorname{IF}_\beta(W)$ and
+$\operatorname{Var}(eR+\rho)=\sigma_e^2+G'\Sigma_\beta G+2G'C$. If each
+completion also redraws $\beta$, the independent draw contributes the
+additional $G'\Sigma_\beta G/B$ term in @eq-vb. A flexible learner instead
+keeps its fitted index fixed across the $B$ point-estimate completions and
+uses the full-pipeline bootstrap to propagate its sampling variability.
+
 ## Moment properties
 
 **Proposition A2.** *Under (A1)-(A2), $E[\varphi] = 0$ at the truth and the
@@ -988,7 +1064,7 @@ $\partial_\beta \eta$. $\square$
 Because any function of $X$ is annihilated by $R$, profiling $\ell$ out of
 the moment leaves $G$ unchanged. That covers either implementation: refitting
 $\hat\ell$ on every completion, or fitting it once from a plug-in completion
-and holding it fixed, which is what the estimator actually does (see the
+and holding it fixed, which is what the binary estimator does (see the
 appendix section on nuisances and draws). Proposition A2 is the formal
 content of the statement in the body that the imputation model sits outside
 the orthogonality guarantee.
@@ -1290,6 +1366,21 @@ logit:
 
 The last four entries are all $J = 3$: widening a three-category partition
 drives $c$ from well below the binary value to nearly 1.
+
+## Machine-learning expansion (Theorem M1)
+
+`R/theory_ml_expansion.R` compares the exact conditional generated-outcome
+shift $\psi(\hat v;v_0)-v_0$ with its linear approximation
+$c(v_0)(\hat v-v_0)$ for GAM, MARS, and neural backfitting. It uses the S5
+design, $\theta_0\in\{1.5,3\}$, $n\in\{1000,2000\}$, and 50 replications per
+cell. The analytic derivative agrees with central differences to
+$7.2\times10^{-11}$. Across all 12 learner cells, the mean absolute
+pointwise Taylor remainder divided by mean squared index error ranges from
+0.016 to 0.027. At $n=2000$, the absolute residual-projected remainder ranges
+from 0.0015 to 0.0107, against a first-order scale of 0.063 to 0.138. Thus
+the generated-outcome part of (M1) is second order in the fitted-index error
+in every implemented design. This check does not establish the
+learner-specific asymptotic representation in (M2).
 
 ## The variance decomposition (Theorems A1 and A2)
 

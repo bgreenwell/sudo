@@ -287,6 +287,16 @@ bias and coverage criteria as the existing default.
 
 ### Phase 3: Develop a learner-class asymptotic expansion
 
+Status: the learner-class expansion is now stated as Theorem M1. It requires
+an asymptotically linear residual-weighted projection of the fold-specific
+imputation error and yields
+`Var(e R + rho(W)) + sigma_u^2/B`, scaled by `J_theta^-2`.
+`R/theory_ml_expansion.R` verifies the generated-outcome Taylor step for GAM,
+MARS, and PL-backfit: the second-order ratio is 0.016 to 0.027 in every cell,
+and the projected remainder is small relative to the first-order scale. The
+remaining theoretical task is learner-specific verification of the projected
+asymptotic-linearity condition, especially under bootstrap resampling.
+
 Define the imputation estimator by fold-specific functions
 `v_hat[-k](D, X) = alpha_hat[-k] D + f_hat[-k](X)`, without requiring a
 finite-dimensional parameterization.
