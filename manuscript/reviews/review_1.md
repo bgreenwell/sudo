@@ -29,9 +29,9 @@ The principal unresolved issue is therefore learner-specific inference for a
 cross-fitted machine-learning imputation model. Theorem M2 now gives
 conditional convergence and variance consistency for the full-pipeline
 bootstrap under a projected learner-stability condition. That condition is
-not yet verified separately for GAM, MARS, or neural backfitting.
-Fixed-imputation reference distributions and covariate-direction leakage
-also still need formal treatment.
+not yet verified separately for GAM, MARS, or neural backfitting. The
+fixed-imputation reference distribution and covariate-direction leakage
+bound are now derived and numerically validated.
 
 The previous external assessment was useful mainly as an agenda check. It
 correctly identified several open areas already recorded in
@@ -176,18 +176,18 @@ Taking the number of imputations to infinity removes Monte Carlo uncertainty
 in estimating the between-imputation component. It does not mean that every
 variance contribution associated with imputation disappears.
 
-### 7. The application is appropriately cautious, with one overstatement
+### 7. The application caveat is repaired
 
 The wine application clearly labels its causal interpretation as dependent
 on a debatable graph and strong adjustment assumptions. The leave-one-out
 analysis and two types of sensitivity calculations are useful.
 
-The conclusion that the imputation model would have to be wrong by an amount
-that is "not credible" is stronger than the analysis supports. That
-calculation isolates treatment-direction error, while the paper demonstrates
-that covariate-direction leakage can also be material. The paper should
-report the multiplier and either let readers assess plausibility or condition
-the conclusion explicitly on negligible covariate-direction misspecification.
+The manuscript now reports the treatment-direction sensitivity multiplier
+and conditions its interpretation explicitly on negligible
+covariate-direction misspecification. Proposition A4 supplies the missing
+exact covariate-leak identity and weighted norm bound, so readers can assess
+a specified covariate perturbation separately. No general robustness claim
+is made from the treatment-direction calculation alone.
 
 ## Assessment of the previous external review
 
@@ -375,12 +375,19 @@ bootstrap-SD interval.
 
 ### Phase 6: Bound covariate-direction leakage
 
-Derive a weighted norm bound involving overlap,
-`c(eta_1) - c(eta_0)`, and the covariate-direction index error.
+Status: complete. Proposition A4 expresses the exact finite-perturbation
+leak through arm-specific path-averaged derivatives and gives both a global
+weighted Cauchy-Schwarz bound and a sharper local second-order bound.
+Overlap enters through `J_theta = E[m(X){1-m(X)}]`, with an explicit lower
+bound under uniform overlap.
 
-Acceptance criterion: a bound that is computable or conservatively
-estimable and has the correct order in the interaction-misspecification
-experiment.
+`R/theory_covariate_leakage.R` verifies both bounds across 12 interaction
+cells using two million population draws. The local bound is 2.82 to 7.79
+times the exact leak and the Taylor remainder scales as
+`0.0027` to `0.0091` times the squared perturbation. The stage-7 interaction
+arm is also decomposed into covariate leakage and induced
+treatment-coefficient error, correcting the earlier claim that it was a
+pure covariate-direction experiment.
 
 ### Phase 7: Complete secondary methodological work
 
@@ -392,16 +399,11 @@ After the inferential work:
 
 ## Recommended execution order
 
-The immediate sequence should be:
+Items 1 through 6 in the original sequence are complete. The remaining
+order is:
 
-1. reconcile the completed ordinal correction and remaining paper claims;
-2. compare GAM, MARS, and PL-backfit under a common design;
-3. develop the learner-class asymptotic expansion;
-4. prove or narrow the full-pipeline bootstrap result;
-5. derive the fixed-imputation reference law;
-6. bound covariate-direction leakage;
-7. leave other learners and extensions as secondary work.
-
-This order gives the fastest opportunity either to validate the current
-inferential account or to identify precisely where the estimator, variance,
-or manuscript claims must change.
+1. verify the projected asymptotic-linearity and bootstrap-stability
+   conditions separately for GAM, MARS, and neural backfitting;
+2. retune or directly diagnose secondary learner classes only after that
+   proof attempt identifies what stability must be measured;
+3. treat multinomial outcomes as a separate project.

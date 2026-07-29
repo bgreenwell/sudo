@@ -379,20 +379,24 @@ writing $\eta_d = \theta_0 d + g_0(X)$ and $w = \mathrm{Var}(D \mid X)$, the
 surviving term is
 $$\text{covariate-direction leak} \;=\;
 \frac{E\bigl[w\,\bigl(c(\eta_1) - c(\eta_0)\bigr)\,\delta_X\bigr]}{E[w]} .$$ {#eq-leak}
-The leak is thus governed by *how differently the truncation damps the two
-treatment arms*. Were $c$ the same in both, it would vanish exactly and the
-naive argument would be right.
+This is the first-order form. Proposition A4 gives the exact path-integrated
+version and a weighted norm bound. The leak is governed by *how differently
+the truncation damps the two treatment arms*. Were the two path-averaged
+factors the same, it would vanish exactly and the naive argument would be
+right.
 
 It is not always small. It does vanish when the imputation model can
 represent $g_0$, which is why designs with every model correctly specified
-show no covariate-direction bias. When it cannot, the leak bites: giving
-$g_0$ an $X_1 X_2$ interaction that an additive imputation model cannot
-express produces a bias of 5 to 6% of $\theta_0$ even though the treatment
-enters that model correctly, so $\delta_D = 0$ and @eq-leak is the whole
-story, and coverage falls to 0.75 at strong signal. Refitting the same design
-with an imputation model that admits the interaction removes the bias,
-confirming the imputation model rather than the adjustment nuisances as the
-source.
+show no covariate-direction bias. When it cannot, two channels can appear.
+Giving $g_0$ an $X_1X_2$ interaction that an additive logistic imputation
+model cannot express produces a bias of 5 to 6% of $\theta_0$ and coverage
+of 0.75 at strong signal. Although treatment is constrained to enter
+linearly, omitted logistic heterogeneity shifts its pseudo-true coefficient,
+so this experiment is not a pure $\delta_D=0$ case. The population
+decomposition in @sec-numverify separates the common covariate leak from
+that induced treatment-direction error. Refitting the same design with an
+imputation model that admits the interaction removes the bias, confirming
+the imputation model rather than the adjustment nuisances as the source.
 
 Third, in the sharpest
 contrast with standard DML, the imputation model's error enters
@@ -1365,12 +1369,63 @@ $m\,c(\theta_0 + g_0) + (1 - m)\,c(g_0)$. For continuous $D$ with index
 error $\delta_D D$ the multiplier is instead
 $\bar c_1 = E[c(\eta_0) D R] / E[R^2]$, which is a different expression. The
 covariate-direction leak is @eq-leak, nonzero because $c$ depends on $D$
-through $\eta$ and so is not annihilated by projecting on $R$. We do not
-bound it. It is not negligible in general: with an imputation model unable to
-represent $g_0$ it reaches 5 to 6% of $\theta_0$ while $\delta_D = 0$, so
-nothing here guarantees it is small relative to $\bar c_1 \delta_D$.
+through $\eta$ and so is not annihilated by projecting on $R$.
 @tbl-sensitivity is the empirical counterpart for the treatment direction,
 recovering the predicted slope $\bar c_1$.
+
+For a finite perturbation, define the arm-specific path derivative and its
+average
+$$
+c_d(t;h)=
+\left.\partial_v\psi(v;\eta_d)\right|_{v=\eta_d+t h},
+\qquad
+\bar c_d(h)=\int_0^1c_d(t;h)\,dt ,
+$$
+where $\psi(v;\eta_d)$ uses fitted index $v$ while the observed category is
+still generated at the true index $\eta_d$. At $h=0$,
+$c_d(0;0)=c(\eta_d)$ from Proposition A1. Write
+$\|a\|_w=\{E[wa^2]\}^{1/2}$ and $J_\theta=E[w]$.
+
+**Proposition A4 (covariate-leakage bound).** *Suppose $D$ is binary and the
+limiting imputation-index error is the same $h(X)$ in both arms. Then the
+population SUDO target has the exact covariate-direction bias*
+$$
+L_X(h)=J_\theta^{-1}
+E\!\left[w\,h\{\bar c_1(h)-\bar c_0(h)\}\right],
+$$ {#eq-leak-exact}
+*and hence*
+$$
+|L_X(h)|\leq
+J_\theta^{-1}\|h\|_w\,
+\|\bar c_1(h)-\bar c_0(h)\|_w .
+$$ {#eq-leak-bound}
+*Writing the first-order term as*
+$$L_X^{(1)}(h)=J_\theta^{-1}
+E[w\,h\{c(\eta_1)-c(\eta_0)\}],$$
+*the sharper local bound is*
+$$
+|L_X(h)-L_X^{(1)}(h)|
+\leq J_\theta^{-1}\|h\|_w\,
+\left\|
+\{\bar c_1(h)-c(\eta_1)\}
+-\{\bar c_0(h)-c(\eta_0)\}
+\right\|_w .
+$$ {#eq-leak-local}
+
+*Sketch.* The fundamental theorem of calculus gives
+$\psi(\eta_d+h;\eta_d)-\eta_d=h\bar c_d(h)$. Conditioning
+$E[R\Delta_D]$ on $X$ gives
+$w(\Delta_1-\Delta_0)$, proving @eq-leak-exact. The two bounds are
+Cauchy-Schwarz, first on the full path-factor difference and then only on
+its deviation from the derivative at the truth. $\square$
+
+The bound is computable for a specified sensitivity perturbation $h$ and
+becomes a conservative sensitivity radius when $\|h\|_w$ is bounded. Under
+$\epsilon\leq m(X)\leq1-\epsilon$,
+$J_\theta\geq\epsilon(1-\epsilon)$ makes the overlap dependence explicit.
+The local remainder is second order when the path derivative is locally
+Lipschitz. Nothing forces the first-order term or its bound to be small
+relative to the treatment-direction contribution.
 
 # Appendix: simulation and application details {#sec-appendix}
 
@@ -1572,13 +1627,10 @@ estimation error, and it does not shrink with $n$.
 
 `R/theory_fixed_b_inference.R` evaluates @eq-fixed-b-reference at
 $B\in\{5,10,25,50,100\}$ and then checks it with 1,000 independent samples
-at $n=5{,}000$. Theory-predicted and empirical coverage differ by at most
-0.012 across all 40 comparisons in @tbl-fixed-b. The ordinary normal
-critical value is inadequate when $B$ is small, especially at strong
-signal: predicted coverage is 0.888 at $B=5$, 0.921 at $B=10$, and still
-0.938 at $B=25$. Barnard-Rubin raises those values to 0.942, 0.947, and
-0.948. The calibrated Satterthwaite approximation is within 0.006 of 0.95
-in every cell, and the mixture is 0.95 by construction.
+at $n=5{,}000$. Prediction and empirical coverage differ by at most 0.012
+across all 40 comparisons in @tbl-fixed-b. Normal inference is inadequate
+at small $B$ and strong signal; Barnard-Rubin is close to the exact mixture,
+and calibrated Satterthwaite coverage is within 0.006 of 0.95 in every cell.
 
 ```{r}
 #| label: tbl-fixed-b
@@ -1609,6 +1661,36 @@ component but does not remove Theorem A2's systematic Rubin discrepancy.
 For a flexible imputation learner, the full-pipeline bootstrap normal
 interval remains the corresponding default; the percentile and conventional
 studentized comparisons in @tbl-ml-bootstrap do not improve it.
+
+## Covariate-direction leakage (Proposition A4)
+
+`R/theory_covariate_leakage.R` evaluates the exact path identity and both
+bounds with two million population draws from the stage-7 interaction
+design. It omits $\lambda X_1X_2$ for
+$\lambda\in\{\mp0.5,\mp1,\mp1.5\}$ at $\theta_0\in\{1,2.5\}$. The global
+and local bounds cover the exact covariate leak in all 12 cells. The local
+bound is 2.82 to 7.79 times the absolute leak, while the absolute Taylor
+remainder divided by $\lambda^2$ is 0.0027 to 0.0091. It is therefore
+conservative but has the correct second-order scale in this symmetric
+interaction design.
+
+The calculation also corrects the earlier interpretation of stage 7.
+Omitting the interaction shifts the pseudo-true logistic treatment
+coefficient even though $D$ is constrained to enter linearly. At
+$\lambda=1$, the population decomposition is:
+
+| $\theta_0$ | Covariate leak | Induced treatment component | Total prediction | Stage-7 bias |
+|---|---:|---:|---:|---:|
+| 1.0 | -0.015 | -0.021 | -0.036 | -0.050 |
+| 2.5 | -0.013 | -0.068 | -0.081 | -0.147 |
+
+The population calculation is deliberately simpler than the fitted
+additive GAM and understates the observed magnitude, especially at strong
+signal. Its differences from stage 7, 0.014 and 0.066, are inside the
+prespecified Monte Carlo tolerances of 0.030 and 0.075. More importantly,
+the decomposition establishes that the interaction experiment is not a pure
+covariate-leakage arm: the induced treatment-direction channel is at least
+as large.
 
 Both closed forms behind these quantities rest on one identity,
 $p(1-p)(\mu_+ - \mu_-) = H(p)$ for the logistic law, which yields both

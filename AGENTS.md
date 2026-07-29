@@ -47,6 +47,7 @@ Rscript R/theory_variance_terms.R      # fixed-B variance and the Rubin exactnes
 Rscript R/theory_fixed_b_inference.R   # fixed-B mixture and reference laws
 Rscript R/theory_ml_expansion.R        # ML generated-outcome first-order expansion
 Rscript R/theory_ml_bootstrap.R        # fixed vs redrawn full-pipeline bootstrap
+Rscript R/theory_covariate_leakage.R   # exact covariate leak and norm bounds
 Rscript R/theory_ordinal_variance_terms.R # ordinal threshold and Rubin terms
 Rscript R/theory_ordinal_nuisance_ladder.R # isolate ordinal variance inflation
 
@@ -133,15 +134,18 @@ repository root.
   `0.861` (theta = 3) under the stage-3 DGP. The truncation self-corrects
   because `Y` comes from the truth, but that help vanishes once `Y` is nearly
   deterministic; this, not quasi-separation, is why every learner degrades at
-  theta = 3. The X-direction is not fully protected either (`S` is nonlinear
-  in `V_hat`), only small here.
+  theta = 3. The X-direction is not protected either. Proposition A4 gives
+  its exact path-integrated form and weighted norm bounds. The stage-7
+  interaction arm is not pure X-leakage: omitted logistic heterogeneity also
+  shifts the pseudo-true D coefficient.
 - **A black-box imputation model can give valid inference.** Two pieces: a
   validated PL learner fixes the bias; the full-pipeline bootstrap
-  (`sudo_pipeline_boot`, stage 3p) fixes the SE (theta = 3 coverage 0.860 to
-  0.95 for the percentile interval). Stage 3s confirms the result with GAM,
-  MARS, and tuned PL-backfit. A recentered within-fold bootstrap under-propagates full-model
-  variance; resampling the whole dataset and rerunning the pipeline captures
-  it.
+  (`sudo_pipeline_boot`, stage 3p) fixes the SE. The normal bootstrap-SD
+  interval is supported under Theorem M2's high-level conditions; raw
+  percentile and conventional studentized intervals are empirical only at
+  fixed B. Stage 3s confirms the result with GAM, MARS, and tuned PL-backfit.
+  A recentered within-fold bootstrap under-propagates full-model variance;
+  resampling the whole dataset and rerunning the pipeline captures it.
 - **Watch the calibration-slope direction.** Stages 3g and 3j to 3l regress
   `eta ~ V_hat`, so slope above 1 means `V_hat` is attenuated, below 1 means
   inflated.
