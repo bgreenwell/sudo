@@ -26,7 +26,7 @@ explicitly, distinguishes SUDO from existing logistic DML, and qualifies the
 black-box evidence by design.
 
 The principal unresolved issue is therefore learner-specific inference for a
-cross-fitted machine-learning imputation model. Theorem M2 now gives
+cross-fitted machine-learning imputation model. Conjecture M2 states
 conditional convergence and variance consistency for the full-pipeline
 bootstrap under a projected learner-stability condition. That condition is
 not yet verified separately for GAM, MARS, or neural backfitting. The
@@ -89,7 +89,7 @@ efficiency claim is made.
 The paper states that partially linear machine-learning imputation models
 and a full-pipeline bootstrap attain nominal coverage in the designs studied.
 The repository supports that statement for GAM, MARS, and neural
-backfitting. Theorem M2 adds a learner-class result, but its projected
+backfitting. Conjecture M2 adds a learner-class statement, but its projected
 bootstrap-stability condition remains a learner-specific proof obligation,
 so it does not support an unconditional general validity claim.
 
@@ -102,11 +102,11 @@ The discussion already contains much of the necessary qualification.
 
 ### 4. The machine-learning theory is high-level rather than learner-specific
 
-Theorem M1 now treats the cross-fitted flexible imputation index
+Conjecture M1 now treats the cross-fitted flexible imputation index
 `v(D, X) = alpha D + f(X)` directly and retains the parametric formulas as a
 special-case corollary. It isolates the first-order residual-weighted
 projection of the fitted-index error and the fixed-imputation completion
-noise. Theorem M2 supplies the corresponding bootstrap result under
+noise. Conjecture M2 supplies the corresponding bootstrap statement under
 conditional stability. The remaining gaps are learner-specific:
 
 - prove the projected asymptotic-linearity condition for GAM, MARS, and
@@ -195,7 +195,7 @@ is made from the treatment-direction calculation alone.
 
 The previous review correctly emphasized:
 
-- full-pipeline bootstrap validity as an open theorem;
+- full-pipeline bootstrap validity as an open proof problem;
 - the generated-outcome step as distinct from ordinary DML;
 - an ordinal term-level variance decomposition;
 - threshold contributions to the derivative;
@@ -208,7 +208,7 @@ but they remain valid priorities.
 
 ### Points to reject or restate
 
-1. **Six bootstrap conditions as a theorem.** The listed conditions are a
+1. **Six bootstrap conditions as an established theorem.** The listed conditions are a
    plausible checklist, not established sufficient conditions for SUDO.
 
 2. **Mandatory redrawing of folds.** Redrawing folds within each bootstrap
@@ -296,7 +296,7 @@ bias and coverage criteria as the existing default.
 
 ### Phase 3: Develop a learner-class asymptotic expansion
 
-Status: the learner-class expansion is now stated as Theorem M1. It requires
+Status: the learner-class expansion is now stated as Conjecture M1. It requires
 an asymptotically linear residual-weighted projection of the fold-specific
 imputation error and yields
 `Var(e R + rho(W)) + sigma_u^2/B`, scaled by `J_theta^-2`.
@@ -328,7 +328,7 @@ expansion or bootstrap consistency as a hypothesis.
 
 ### Phase 4: Prove or narrow full-pipeline bootstrap validity
 
-Status: narrowed to a precise learner-class result. Theorem M2 establishes
+Status: narrowed to a precise learner-class conjecture. Conjecture M2 states
 conditional weak convergence around the bootstrap conditional mean and
 bootstrap-variance consistency under projected learner stability,
 conditional nuisance rates, integrated-map differentiability, randomized
@@ -339,7 +339,7 @@ choice rather than a necessity.
 
 The fixed-imputation centering distinction is material. Fresh surrogate
 randomness leaves an order-$n^{-1/2}$ difference between the realized
-randomized estimate and the bootstrap conditional mean. The theorem
+randomized estimate and the bootstrap conditional mean. The conjecture
 therefore supports the normal interval based on the full-pipeline bootstrap
 SD, but not a conventional percentile or studentized interval without an
 additional argument or increasing imputation count. Learner-specific

@@ -141,7 +141,7 @@ repository root.
 - **A black-box imputation model can give valid inference.** Two pieces: a
   validated PL learner fixes the bias; the full-pipeline bootstrap
   (`sudo_pipeline_boot`, stage 3p) fixes the SE. The normal bootstrap-SD
-  interval is supported under Theorem M2's high-level conditions; raw
+  interval is supported under Conjecture M2's high-level conditions; raw
   percentile and conventional studentized intervals are empirical only at
   fixed B. Stage 3s confirms the result with GAM, MARS, and tuned PL-backfit.
   A recentered within-fold bootstrap under-propagates full-model variance;

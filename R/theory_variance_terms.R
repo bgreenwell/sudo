@@ -1,5 +1,5 @@
 # Theory check: the fixed-B variance decomposition and the cross term C
-# (supports Theorems A1 and A2 of the paper's asymptotic-theory appendix).
+# (supports Conjectures A1 and A2 of the paper's asymptotic-theory appendix).
 #
 # Split the truncated draw noise into a data-measurable part and pure
 # imputation Monte-Carlo noise,
