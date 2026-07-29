@@ -79,6 +79,7 @@ Rscript R/stage3_binary_dml.R          # full binary SUDO with ML nuisances
 Rscript R/stage3s_pl_learners.R        # partially-linear learner comparison
 Rscript R/theory_ml_expansion.R        # learner-class expansion checks
 Rscript R/theory_ml_bootstrap.R        # full-pipeline bootstrap comparison
+Rscript R/theory_fixed_b_inference.R   # fixed-B reference-law comparison
 Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal with flexible nuisances
 Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance

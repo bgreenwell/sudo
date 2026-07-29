@@ -1241,16 +1241,61 @@ Rubin's variance is asymptotically exact if and only if $G'C = \sigma_u^2$,
 conservative when $G'C < \sigma_u^2$, and anti-conservative when
 $G'C > \sigma_u^2$.*
 
-**Remark (what fixed $B$ costs).** With $B$ fixed, no amount of data removes
-the $\chi^2_{B-1}$ fluctuation in the reported variance. This establishes
-that *some* non-normal reference distribution is necessary at any $n$, not
-merely as a small-sample refinement. It does not by itself establish that the
-Barnard-Rubin degrees of freedom are the right one: that formula is derived
-for a complete-data analysis whose within- and between-imputation components
-are independent, whereas here $\bar W$ and $B_{\!*}$ are built from the same
-draws and the same $\hat\beta$. Establishing the required dependence
-structure is open. The predicted spread is large and is confirmed
-numerically in @sec-numverify.
+The joint law resolves the reference-distribution question. Define
+$$
+V_{\mathrm{data}}=\sigma_e^2+G'\Sigma_\beta G+2G'C,\quad
+W_0=J_\theta^{-2}(\sigma_e^2+\sigma_u^2),\quad
+Q_0=J_\theta^{-2}(1+1/B)V_{\mathrm{draw}},
+$$
+and let $\nu=B-1$.
+
+**Corollary (fixed-$B$ reference law).** *Under (A1)-(A5),*
+$$
+\left\{\sqrt n(\bar\theta-\theta_0),\,nT\right\}
+\ \to_d\
+\left\{\sqrt{V_B}\,Z,\,
+W_0+Q_0\frac{X}{\nu}\right\},
+\qquad Z\sim N(0,1),\quad X\sim\chi^2_\nu,\quad Z\perp X.
+$$ {#eq-fixed-b-joint}
+*Consequently*
+$$
+\frac{\bar\theta-\theta_0}{\sqrt T}
+\ \to_d\
+\frac{\sqrt{V_B}\,Z}
+{\sqrt{W_0+Q_0X/\nu}}.
+$$ {#eq-fixed-b-reference}
+
+*Sketch.* The joint central limit theorem behind Theorem A1 writes the
+$b$th completed-data limit as
+$J_\theta^{-1}(A+Q_b)$, where
+$A\sim N(0,V_{\mathrm{data}})$ is common to the draws and the
+$Q_b\stackrel{\mathrm{iid}}{\sim}N(0,V_{\mathrm{draw}})$ are independent of
+$A$. Their sample mean enters $\bar\theta$ and their sample variance enters
+$B_{\!*}$. Normal sample means and sample variances are independent, while
+$n\bar W\to_pW_0$, which gives @eq-fixed-b-joint. $\square$
+
+Thus the exact limiting critical value is the quantile of a
+normal-over-shifted-chi-square mixture, not generally a Student $t$. It is
+obtained by solving
+$$
+E_X\!\left[
+2\Phi\!\left\{q_B
+\sqrt{\frac{W_0+Q_0X/\nu}{V_B}}\right\}-1
+\right]=1-\alpha.
+$$ {#eq-fixed-b-critical}
+A convenient approximation matches the first two moments of the random
+denominator. With
+$$
+\mu_T=W_0+Q_0,\qquad
+\nu_S=\nu(\mu_T/Q_0)^2,
+$$
+the variance-calibrated Satterthwaite critical value is
+$q_S=\sqrt{V_B/\mu_T}\,t_{1-\alpha/2,\nu_S}$.
+Barnard-Rubin instead uses the observed
+$r=(Q_0X/\nu)/W_0$ and
+$\nu_{\mathrm{BR}}=\nu(1+1/r)^2$ in the limit. It is not exactly
+@eq-fixed-b-reference, but the comparison in @sec-numverify shows that it is
+close.
 
 Neither direction is automatic, and we do not find exactness. On a
 deliberately congenial testbed that isolates the pooling from every other
@@ -1524,6 +1569,46 @@ replications is 2.13 against a mean of 9.73, while @eq-bstar predicts
 $(1 + 1/B)V_{\mathrm{draw}}\sqrt{2/(B-1)} = 2.08$. The residual spread in the
 reported variance is therefore the between-draw sample variance, not
 estimation error, and it does not shrink with $n$.
+
+`R/theory_fixed_b_inference.R` evaluates @eq-fixed-b-reference at
+$B\in\{5,10,25,50,100\}$ and then checks it with 1,000 independent samples
+at $n=5{,}000$. Theory-predicted and empirical coverage differ by at most
+0.012 across all 40 comparisons in @tbl-fixed-b. The ordinary normal
+critical value is inadequate when $B$ is small, especially at strong
+signal: predicted coverage is 0.888 at $B=5$, 0.921 at $B=10$, and still
+0.938 at $B=25$. Barnard-Rubin raises those values to 0.942, 0.947, and
+0.948. The calibrated Satterthwaite approximation is within 0.006 of 0.95
+in every cell, and the mixture is 0.95 by construction.
+
+```{r}
+#| label: tbl-fixed-b
+#| echo: false
+#| tbl-cap: "Fixed-imputation 95% coverage, theory prediction / finite-sample estimate; $n=5000$, 1000 replications."
+fb <- rd("theory_fixed_b_inference.csv")
+pair_cov <- function(pred, emp) sprintf("%.3f / %.3f", pred, emp)
+tab <- data.frame(
+  `$\\theta_0$` = nn(fb$theta0, 0),
+  `$B$` = fb$B,
+  Normal = pair_cov(fb$coverage_normal_pred, fb$coverage_normal_emp),
+  `Barnard-Rubin` = pair_cov(fb$coverage_br_pred, fb$coverage_br_emp),
+  Satterthwaite = pair_cov(
+    fb$coverage_satterthwaite_pred,
+    fb$coverage_satterthwaite_emp
+  ),
+  Mixture = pair_cov(fb$coverage_mixture_pred, fb$coverage_mixture_emp),
+  check.names = FALSE
+)
+knitr::kable(tab, align = c("r", "r", "r", "r", "r", "r"))
+```
+
+The practical default remains Barnard-Rubin with at least 25 imputations. It
+requires only the usual pooled quantities and is close to the exact mixture,
+whereas the calibrated alternatives require consistent estimates of
+$V_B$, $W_0$, and $Q_0$. Increasing $B$ reduces the random chi-square
+component but does not remove Theorem A2's systematic Rubin discrepancy.
+For a flexible imputation learner, the full-pipeline bootstrap normal
+interval remains the corresponding default; the percentile and conventional
+studentized comparisons in @tbl-ml-bootstrap do not improve it.
 
 Both closed forms behind these quantities rest on one identity,
 $p(1-p)(\mu_+ - \mu_-) = H(p)$ for the logistic law, which yields both

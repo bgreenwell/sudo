@@ -150,22 +150,27 @@ all prespecified checks.
 The remaining sample-size and imputation-count grid belongs with the
 fixed-imputation investigation. It does not block the corrected default.
 
-### 6. Fixed-imputation inference is both a contribution and an open issue
+### 6. Fixed-imputation inference now has a reference law
 
 The result that the scaled between-imputation variance retains a chi-square
 fluctuation when the number of imputations is fixed is important. It implies
 that increasing sample size alone does not make the reported variance
 deterministic.
 
-The paper correctly stops short of proving that the Barnard-Rubin degrees of
-freedom give the right reference distribution for SUDO. The original
-Barnard-Rubin paper derives an adjustment for finite complete-data degrees of
-freedom in a Bayesian multiple-imputation framework
-([Biometrika 86, 948-955](https://doi.org/10.1093/biomet/86.4.948)).
-The stronger claim in the previous assessment that its derivation
-specifically assumes independence of SUDO's within- and between-imputation
-components was not verified from that source and should not be repeated
-without a precise derivation.
+The joint limit now writes the estimator numerator as a normal variable
+independent of Rubin's shifted-chi-square denominator. The exact reference
+is therefore a normal-over-shifted-chi-square mixture, not generally a
+Student distribution. A variance-calibrated Satterthwaite approximation
+follows by matching the denominator's first two moments. Barnard-Rubin is
+not exact for this law, but is close in the validated testbed.
+
+At strong signal, predicted normal coverage is 0.888, 0.921, and 0.938 for
+5, 10, and 25 imputations. Barnard-Rubin raises it to 0.942, 0.947, and
+0.948; the calibrated Satterthwaite approximation stays within 0.006 of
+0.95. Across both signals and all five imputation counts, predicted and
+finite-sample coverage differ by at most 0.012. Barnard-Rubin with at least
+25 imputations remains the practical default because the exact and
+Satterthwaite references require additional component estimates.
 
 Taking the number of imputations to infinity removes Monte Carlo uncertainty
 in estimating the between-imputation component. It does not mean that every
@@ -358,16 +363,15 @@ conditional-rate requirements, for each implemented learner.
 
 ### Phase 5: Derive fixed-imputation inference
 
-Characterize the joint limiting law of the pooled estimator, mean within
-variance, and between-imputation variance. Compare:
-
-- Barnard-Rubin intervals;
-- a Satterthwaite approximation based on the derived covariance;
-- normal inference with an increasing imputation count;
-- percentile and studentized full-pipeline bootstrap intervals.
-
-Acceptance criterion: theory-predicted and empirical coverage across
-imputation counts 5, 10, 25, 50, and 100 under weak and strong signal.
+Status: complete. The fixed-$B$ joint law establishes independence between
+the normal estimator numerator and shifted-chi-square denominator. The exact
+mixture, calibrated Satterthwaite, Barnard-Rubin, and normal references are
+compared at imputation counts 5, 10, 25, 50, and 100 under weak and strong
+signal. `R/theory_fixed_b_inference.R` passes every theory-versus-finite
+sample coverage check at $n=5000$ and 1,000 replications. The separate
+full-pipeline comparison reports percentile and studentized intervals for
+the machine-learning case and does not promote either over the normal
+bootstrap-SD interval.
 
 ### Phase 6: Bound covariate-direction leakage
 
