@@ -45,6 +45,7 @@ Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-v
 Rscript R/theory_ordinal_passthrough.R # pass-through derivatives, J=2,3,4, three links
 Rscript R/theory_variance_terms.R      # fixed-B variance and the Rubin exactness gap
 Rscript R/theory_ml_expansion.R        # ML generated-outcome first-order expansion
+Rscript R/theory_ml_bootstrap.R        # fixed vs redrawn full-pipeline bootstrap
 Rscript R/theory_ordinal_variance_terms.R # ordinal threshold and Rubin terms
 Rscript R/theory_ordinal_nuisance_ladder.R # isolate ordinal variance inflation
 

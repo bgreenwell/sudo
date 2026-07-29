@@ -87,7 +87,7 @@ fit_blackbox_index <- function(d, full_model = c("ranger", "nnet"),
 # so bootstrap draws are switched off automatically.
 # fit_l / fit_m are the partialling nuisance fitters, following the
 # fitter(X, y) -> function(Xnew) contract from crossfit().
-sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
+sudo_binary <- function(d, B = 25, n_folds = 5, folds = NULL, proper = TRUE,
                         full_model = c("gam", "ranger", "nnet",
                                       "pl_gam", "pl_backfit", "pl_xgboost",
                                       "pl_mboost", "pl_mars"),
@@ -109,7 +109,15 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
   }
   X <- as.data.frame(d$X)
   n <- nrow(X)
-  folds <- make_folds(n, n_folds)
+  if (is.null(folds)) {
+    folds <- make_folds(n, n_folds)
+  } else {
+    stopifnot(
+      is.list(folds),
+      length(folds) == n_folds,
+      identical(sort(as.integer(unlist(folds))), seq_len(n))
+    )
+  }
 
   if (is.function(full_model)) {
     bb <- full_model(d, folds)
@@ -219,32 +227,50 @@ sudo_binary <- function(d, B = 25, n_folds = 5, proper = TRUE,
 # partialling nuisances fixed; the oracle control (stage 3n) showed it
 # under-propagates the full model's own sampling variance into the SE. This
 # instead resamples the ENTIRE dataset and reruns the COMPLETE pipeline per
-# replicate, so the spread across replicates captures every source of
-# sampling variability by construction: full-model estimation, nuisances,
-# fold assignment, and surrogate noise. The SE is the SD of theta across
-# replicates; the point estimate uses the fitted index (a point estimate
-# does not need proper draws). `...` is forwarded to sudo_binary, so any
-# full_model / pl_* configuration works.
+# replicate, so the spread across replicates captures full-model estimation,
+# partialling nuisances, and surrogate noise. With fold_mode = "redraw" it
+# also propagates fold assignment; fold_mode = "fixed" conditions on one
+# regular partition. The SE is the SD of theta across replicates; the point
+# estimate uses the fitted index (a point estimate does not need proper
+# parameter draws). `...` is forwarded to sudo_binary, so any full_model /
+# pl_* configuration works.
 #
 # Caveat: bootstrap ties duplicate rows, which can place copies of one
 # observation in both a cross-fit training and test fold (mild optimism) --
 # the standard caveat for bootstrapping cross-fitted estimators.
 sudo_pipeline_boot <- function(d, B_outer = 100, inner_B = 15,
-                               level = 0.95, ...) {
+                               level = 0.95,
+                               fold_mode = c("redraw", "fixed"),
+                               n_folds = 5, ...) {
+  fold_mode <- match.arg(fold_mode)
   n <- length(d$Y)
+  stopifnot(B_outer >= 2L, inner_B >= 2L, n_folds >= 2L)
   Xd <- as.data.frame(d$X)
-  point <- function(dd) sudo_binary(dd, B = inner_B, proper_boot = FALSE,
-                                    ...)$theta
-  th0 <- point(d)
-  thb <- vapply(seq_len(B_outer), function(b) {
+  fixed_folds <- if (fold_mode == "fixed") make_folds(n, n_folds) else NULL
+  point <- function(dd, folds = NULL) {
+    sudo_binary(dd, B = inner_B, n_folds = n_folds, folds = folds,
+                proper_boot = FALSE, ...)
+  }
+  fit0 <- point(d, fixed_folds)
+  boot <- vapply(seq_len(B_outer), function(b) {
     idx <- sample.int(n, replace = TRUE)
-    point(list(X = Xd[idx, , drop = FALSE], D = d$D[idx], Y = d$Y[idx]))
-  }, numeric(1))
+    fit <- point(
+      list(X = Xd[idx, , drop = FALSE], D = d$D[idx], Y = d$Y[idx]),
+      fixed_folds)
+    c(theta = fit$theta, internal_se = fit$se)
+  }, numeric(2))
+  th0 <- fit0$theta
+  thb <- boot["theta", ]
   se <- sd(thb)
   z <- qnorm(1 - (1 - level) / 2)
   a <- (1 - level) / 2
+  t_boot <- (thb - th0) / boot["internal_se", ]
+  t_quantile <- quantile(t_boot[is.finite(t_boot)], c(a, 1 - a))
   list(theta = th0, se = se, ci_lo = th0 - z * se, ci_hi = th0 + z * se,
        ci_lo_pct = unname(quantile(thb, a)),
        ci_hi_pct = unname(quantile(thb, 1 - a)),
-       B_outer = B_outer)
+       ci_lo_stud = th0 - unname(t_quantile[2]) * fit0$se,
+       ci_hi_stud = th0 - unname(t_quantile[1]) * fit0$se,
+       internal_se = fit0$se, bootstrap_center = mean(thb),
+       B_outer = B_outer, fold_mode = fold_mode)
 }

@@ -25,11 +25,13 @@ R and Python default. The paper also states the conditional latent-error law
 explicitly, distinguishes SUDO from existing logistic DML, and qualifies the
 black-box evidence by design.
 
-The principal unresolved issue is therefore inference for a cross-fitted
-machine-learning imputation model. The full-pipeline bootstrap remains an
-empirical result rather than a proved procedure, and fixed-imputation
-reference distributions and covariate-direction leakage still need formal
-treatment.
+The principal unresolved issue is therefore learner-specific inference for a
+cross-fitted machine-learning imputation model. Theorem M2 now gives
+conditional convergence and variance consistency for the full-pipeline
+bootstrap under a projected learner-stability condition. That condition is
+not yet verified separately for GAM, MARS, or neural backfitting.
+Fixed-imputation reference distributions and covariate-direction leakage
+also still need formal treatment.
 
 The previous external assessment was useful mainly as an agenda check. It
 correctly identified several open areas already recorded in
@@ -82,12 +84,14 @@ the same latent-logit coefficient under the logit specification and presents
 SUDO as a link-flexible alternative. No estimator equivalence or common
 efficiency claim is made.
 
-### 3. The black-box inference claim exceeds the evidence
+### 3. The black-box inference claim is now correctly delimited
 
 The paper states that partially linear machine-learning imputation models
-and a full-pipeline bootstrap attain nominal coverage. The repository now
-supports that statement for GAM, MARS, and neural backfitting in the designs
-studied. It does not yet support a general validity claim.
+and a full-pipeline bootstrap attain nominal coverage in the designs studied.
+The repository supports that statement for GAM, MARS, and neural
+backfitting. Theorem M2 adds a learner-class result, but its projected
+bootstrap-stability condition remains a learner-specific proof obligation,
+so it does not support an unconditional general validity claim.
 
 The abstract and contributions should use design-specific language, such as:
 
@@ -96,21 +100,21 @@ The abstract and contributions should use design-specific language, such as:
 
 The discussion already contains much of the necessary qualification.
 
-### 4. The machine-learning imputation theory is not theorem-ready
+### 4. The machine-learning theory is high-level rather than learner-specific
 
-The appendix appropriately describes its parametric results as derivations
-with proof sketches and numerical verification. Those formulas are useful as
-a special case and benchmark, but the methodological center of the paper is
-a cross-fitted flexible imputation index of the form
-`v(D, X) = alpha D + f(X)`. The missing result is a learner-class expansion
-for that estimator. The remaining gaps include:
+Theorem M1 now treats the cross-fitted flexible imputation index
+`v(D, X) = alpha D + f(X)` directly and retains the parametric formulas as a
+special-case corollary. It isolates the first-order residual-weighted
+projection of the fitted-index error and the fixed-imputation completion
+noise. Theorem M2 supplies the corresponding bootstrap result under
+conditional stability. The remaining gaps are learner-specific:
 
-- an expansion of the residual-weighted, fold-specific imputation error;
-- uniform control of stochastic remainders;
-- conditional nuisance-rate requirements under bootstrap resampling;
-- differentiability of the generated-outcome map;
-- the correct fixed-imputation reference distribution;
-- learner-specific stability conditions for the full-pipeline bootstrap.
+- prove the projected asymptotic-linearity condition for GAM, MARS, and
+  neural backfitting;
+- prove its conditional bootstrap analogue for those learners;
+- verify the stated uniform remainder and conditional nuisance-rate
+  conditions rather than assuming them at learner-class level;
+- derive the correct fixed-imputation reference distribution.
 
 Tang and Westling provide general bootstrap conditions for asymptotically
 linear estimators with machine-learned nuisances
@@ -118,8 +122,8 @@ linear estimators with machine-learned nuisances
 exchangeably weighted bootstrap validity for general DML estimators under the
 conditions needed for DML itself
 ([arXiv:2604.17239](https://arxiv.org/abs/2604.17239)). Neither source, based
-on its stated scope, directly proves validity for SUDO's randomized generated
-outcome.
+on its stated scope, discharges SUDO's projected learner condition or its
+randomized generated-outcome continuity condition.
 
 Hahn and Ridder study the influence of first-step generated regressors in
 three-step semiparametric estimators
@@ -319,27 +323,38 @@ expansion or bootstrap consistency as a hypothesis.
 
 ### Phase 4: Prove or narrow full-pipeline bootstrap validity
 
-Map the ordinary asymptotically linear and DML components to the conditions
-in Tang-Westling and Lin-Han. Prove the SUDO-specific generated-outcome
-result separately.
+Status: narrowed to a precise learner-class result. Theorem M2 establishes
+conditional weak convergence around the bootstrap conditional mean and
+bootstrap-variance consistency under projected learner stability,
+conditional nuisance rates, integrated-map differentiability, randomized
+completion continuity, and regular folds. The raw inverse-transform map need
+not be differentiable for every fixed uniform. Fixed and redrawn folds are
+both admissible under the stated condition, so redrawing is a propagation
+choice rather than a necessity.
 
-Questions to settle:
+The fixed-imputation centering distinction is material. Fresh surrogate
+randomness leaves an order-$n^{-1/2}$ difference between the realized
+randomized estimate and the bootstrap conditional mean. The theorem
+therefore supports the normal interval based on the full-pipeline bootstrap
+SD, but not a conventional percentile or studentized interval without an
+additional argument or increasing imputation count. Learner-specific
+verification of projected bootstrap stability remains open.
 
-- whether differentiability is needed for the randomized quantile map, its
-  conditional expectation, or only the integrated score;
-- whether common random numbers give a useful smooth representation away
-  from probability boundaries;
-- whether redrawn folds are necessary or only sufficient;
-- what the bootstrap target is when the imputation count is fixed;
-- which projected-error stability conditions hold for GAM, MARS, and
-  PL-backfit.
+The paired numerical check is complete for GAM, MARS, and neural backfitting
+at both effect sizes. Fixed/redrawn mean-SE ratios range from 0.97 to 1.08,
+with every paired bias difference inside its Monte Carlo tolerance. The
+within-fold SE is 0.90 to 0.93 of the full-pipeline SE at moderate signal and
+only 0.75 to 0.77 at strong signal. The improper SE is another 8% to 25%
+smaller. The within-fold procedure therefore sits between improper and full
+propagation rather than reproducing the improper variance exactly. Normal
+coverage is 0.93 to 0.97; conventional studentization ranges from 0.80 to
+0.93 and is not promoted.
 
-Acceptance criteria:
-
-- conditional weak convergence to the same fixed-imputation law;
-- a numerical comparison of fixed and redrawn folds;
-- a direct test of the claim that the within-fold bootstrap reproduces the
-  improper-draw variance deficit.
+Completed deliverables are the centered conditional law, bootstrap-variance
+consistency, integrated-map argument, fixed/redrawn fold comparison, and
+direct full/within/improper variance comparison. The remaining deliverable
+is learner-specific verification of (MB1), with its uniform remainder and
+conditional-rate requirements, for each implemented learner.
 
 ### Phase 5: Derive fixed-imputation inference
 

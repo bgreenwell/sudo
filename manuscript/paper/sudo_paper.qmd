@@ -440,16 +440,18 @@ because a within-fold refit of the model alone under-propagates that same
 imputation-model variability. Together these restore nominal coverage
 with a black-box imputation model (@sec-sims).
 
-We report the bootstrap as an empirical result rather than a theorem. What
-would be needed is asymptotic linearity of the imputation-model estimator
-uniformly over resamples, the @sec-theory rate conditions holding
-conditionally on the data, fold assignment redrawn within each resample, and
-differentiability of the generated-outcome map. The first three are close to
-available: @tang2024 give conditions for bootstrap consistency of
-asymptotically linear estimators with machine-learned nuisances, and
-@lin2026 establish bootstrap validity for general DML estimators under
-exchangeably weighted resampling, under the same conditions that make DML
-itself valid. Neither covers the generated-outcome step, which is the gap.
+Theorem M2 gives a learner-class bootstrap result under a projected
+bootstrap-stability condition and conditional nuisance rates. It shows that
+fixed and redrawn regular folds are both admissible and that differentiability
+is needed for the integrated generated-outcome map, not for every raw
+inverse-transform draw. It also exposes a fixed-imputation centering point:
+fresh surrogate randomness makes the bootstrap variance consistent, but the
+usual distribution centered at the one realized randomized estimate is not
+covered. The normal interval based on the full-pipeline bootstrap standard
+deviation is the procedure supported under those conditions. The remaining gap is
+learner-specific verification of the projected stability condition for GAM,
+MARS, and neural backfitting. The numerical comparison below supports but
+does not prove it.
 
 A Bayesian ensemble is the obvious alternative, since each posterior draw is
 a complete alternative imputation model and so is a proper draw by
@@ -634,6 +636,35 @@ tab <- data.frame(
 knitr::kable(tab, align = c("l", "r", "r", "r", "r", "r"))
 ```
 
+The bootstrap comparison uses paired generated datasets and reruns each
+learner with either one fixed regular fold partition or folds redrawn in
+every resample. @tbl-ml-bootstrap reports the direct comparison. The
+within-fold method refits only the imputation learner inside the original
+training folds, while the improper method holds its fitted index fixed.
+Their SE ratios therefore locate which layer of variation is omitted. The
+normal interval is the procedure covered by Theorem M2 under its high-level
+conditions; percentile and conventionally centered studentized intervals
+are included as fixed-$B$ empirical benchmarks.
+
+```{r}
+#| label: tbl-ml-bootstrap
+#| echo: false
+#| tbl-cap: "Paired full-pipeline bootstrap comparison, $n=2000$, 30 replications, 15 outer resamples, and 15 surrogate completions per resample."
+sboot <- rd("theory_ml_bootstrap.csv")
+tab <- data.frame(
+  Learner = unname(learner_name[sboot$learner]),
+  `$\\theta_0$` = nn(sboot$theta, 1),
+  `Fixed / redrawn SE` = nn(sboot$fixed_over_redrawn_se),
+  `Within / full SE` = nn(sboot$within_over_full_se),
+  `Improper / within SE` = nn(sboot$improper_over_within_se),
+  `Normal coverage` = nn(sboot$coverage_redrawn_normal),
+  `Percentile coverage` = nn(sboot$coverage_redrawn_percentile),
+  `Studentized coverage` = nn(sboot$coverage_redrawn_student),
+  check.names = FALSE
+)
+knitr::kable(tab, align = c("l", rep("r", 7)))
+```
+
 **Continuous treatment, and other variations.** The designs above all use a
 binary treatment, while the application below does not, so we check the
 transfer directly. Replacing binary $D$ with $D = 0.7\pi(X) + N(0,1)$ in the
@@ -785,8 +816,8 @@ diagnostic that can flag, though not confirm, a wrong link.
 
 The cost, made precise by the propagation analysis, is that the imputation model
 sits outside the orthogonality guarantee: its error reaches the effect at
-first order, through a truncation factor that weakens as the signal
-strengthens. This differs from standard DML, where nuisance error is
+first order, through a truncation factor that rises as the signal
+strengthens and the outcome's self-correction fades. This differs from standard DML, where nuisance error is
 second-order. It is also manageable: a well-specified parametric or a partially-linear
 machine-learning imputation model, paired with a full-pipeline bootstrap,
 attains nominal coverage throughout our experiments.
@@ -1042,6 +1073,76 @@ completion also redraws $\beta$, the independent draw contributes the
 additional $G'\Sigma_\beta G/B$ term in @eq-vb. A flexible learner instead
 keeps its fitted index fixed across the $B$ point-estimate completions and
 uses the full-pipeline bootstrap to propagate its sampling variability.
+
+## Bootstrap propagation for the learner class
+
+The fixed-$B$ randomized estimator needs a slightly different bootstrap
+statement from a deterministic asymptotically linear estimator. Let
+$\hat\theta_B^*$ rerun the entire procedure on an Efron resample, including
+fresh surrogate uniforms, and let
+$$\mu_n^*=E^*(\hat\theta_B^*\mid\mathcal D_n)$$
+average over resampling, any redrawn fold partition, and the fresh
+surrogate randomness. We add four conditional conditions. **(MB1)** The
+projected learner expansion in (M2) is bootstrap stable: after centering, its
+resampled version has influence
+$n^{-1/2}\sum_i(N_i-1)\rho(W_i)+o_{P^*}(1)$ in outer probability.
+**(MB2)** The adjustment-nuisance rates in (M3) hold conditionally under
+resampling. **(MB3)** The integrated map $\psi$ has the dominated
+differentiability in (M4), and the centered randomized completion is
+conditionally $L_2(R^2)$ continuous in the fitted index. **(MB4)** Fold
+sizes are asymptotically balanced and the learner conditions hold uniformly
+over either a fixed partition independent of the observations or a fresh
+regular partition in every resample.
+
+These conditions separate the two existing bootstrap results we use.
+@tang2024 supply general consistency conditions for estimators with
+machine-learned nuisances, while @lin2026 establish exchangeably weighted
+bootstrap validity for DML under its usual conditions. Conditions (MB1) and
+(MB3) are the extra generated-outcome requirements specific to SUDO. The
+raw inverse-transform draw need not be differentiable for every fixed
+uniform at a truncation boundary. Differentiability is needed for its
+integrated score $\psi$; conditional $L_2$ continuity controls the centered
+draw remainder.
+
+**Theorem M2.** *Under the conditions of Theorem M1 and (MB1)-(MB4), with
+fixed $K$ and fixed $B$,*
+$$
+\sup_t\left|
+ P^*\{\sqrt n(\hat\theta_B^*-\mu_n^*)\leq t\}
+ -\Phi\{t/\sqrt{V_B^{\mathrm{ML}}}\}
+\right|\to_p0,
+\qquad
+n\,\operatorname{Var}^*(\hat\theta_B^*)\to_pV_B^{\mathrm{ML}}.
+$$ {#eq-ml-bootstrap}
+
+*Sketch.* Apply the exchangeably weighted expansion to
+$eR+\rho(W)$ using (MB1)-(MB2). Conditional on each resampled observation,
+the fresh centered completion terms are independent across observations and
+draws, with limiting contribution $\sigma_u^2/B$; (MB3) permits replacing
+the fitted index in that term by its limit. The conditional Lindeberg
+central limit theorem and (MB4) give the same law for fixed or redrawn
+regular folds. Conditional second-moment convergence gives the variance
+statement. $\square$
+
+The centering in @eq-ml-bootstrap is substantive. At fixed $B$,
+$\hat\theta_B-\mu_n^*$ contains $O_p(n^{-1/2})$ surrogate Monte Carlo noise.
+Consequently the usual claim with
+$\hat\theta_B^*-\hat\theta_B$ does not follow. The bootstrap standard
+deviation is still consistent and therefore supports the normal interval
+$\hat\theta_B\pm z_{1-\alpha/2}\hat s_{\mathrm{boot}}$. A centered
+bootstrap distribution may instead estimate $\mu_n^*$ by the mean of the
+outer replicates. Raw percentile and conventionally centered studentized
+intervals require either $B\to\infty$ fast enough to remove this centering
+gap or an additional randomized-estimator argument. We report them as
+empirical comparisons, not consequences of Theorem M2.
+
+Neither (M2) nor its bootstrap analogue (MB1) has been proved separately for
+the implemented GAM, MARS, or neural-backfit algorithms. The theorem
+therefore identifies the exact learner-specific obligation rather than
+turning their numerical performance into a proof. Redrawing folds is also
+not necessary under (MB4); it is the implementation default because it
+propagates partition variability. The paired check in @sec-numverify finds
+fixed and redrawn folds indistinguishable at its Monte Carlo resolution.
 
 ## Moment properties
 
@@ -1381,6 +1482,29 @@ from 0.0015 to 0.0107, against a first-order scale of 0.063 to 0.138. Thus
 the generated-outcome part of (M1) is second order in the fitted-index error
 in every implemented design. This check does not establish the
 learner-specific asymptotic representation in (M2).
+
+## Machine-learning bootstrap (Theorem M2)
+
+`R/theory_ml_bootstrap.R` compares fixed and redrawn folds on the same 30
+generated datasets for each learner and signal, with 15 outer resamples and
+15 completions per resample. The fixed/redrawn mean-SE ratio ranges from
+0.97 to 1.08, and every paired bias difference is smaller than its
+prespecified Monte Carlo tolerance. Redrawing folds is therefore not
+empirically necessary in this design.
+
+The uncertainty hierarchy is signal-dependent and consistent across
+learners. At $\theta_0=1.5$, the within-fold SE is 0.90 to 0.93 of the
+full-pipeline SE; at $\theta_0=3$ it is only 0.75 to 0.77. Holding the fitted
+index fixed reduces the SE further, to 0.75 to 0.92 of the within-fold
+value. Thus the within-fold method does not reproduce the improper method:
+it captures some learner uncertainty, but it misses the data, nuisance, and
+fold layers propagated by the full pipeline. Normal coverage is 0.93 to
+0.97 across the six cells. Percentile coverage is 0.87 to 0.97 and
+conventionally centered studentized coverage is 0.80 to 0.93, which supports
+the fixed-$B$ centering qualification rather than either alternative as a
+default. With 30 replications, coverage Monte Carlo standard errors are
+about 0.03 to 0.07. These checks support the implications of (MB4) and the
+variance ordering, but do not establish learner-specific condition (MB1).
 
 ## The variance decomposition (Theorems A1 and A2)
 
