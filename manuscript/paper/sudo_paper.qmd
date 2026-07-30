@@ -18,7 +18,7 @@ author:
 authorcols: true
 date: today
 abstract: |
-  Double Machine Learning (DML) pairs Neyman-orthogonal scores with cross-fitting to estimate causal effects under flexible adjustment. For categorical outcomes, existing DML methods can target probability- or distribution-scale contrasts, but the partially linear latent-utility coefficient requires different machinery. A binary logistic estimator supplies that coefficient under a logit link; we are aware of no ordinal counterpart. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a binary or ordinal response as missing data. Each observation is completed to a continuous *surrogate* drawn from the assumed error distribution and truncated to the interval implied by its observed category, after which ordinary partialling-out applies. The completions form multiple imputations. In the parametric designs studied, Rubin pooling attained near-nominal coverage only with *proper* draws that redraw the imputation model's parameters, including ordinal thresholds; naive and improper draws under-covered. The method accommodates multiple links, and its surrogate residuals provide a link diagnostic. We also derive how imputation-model error reaches the target: it enters at first order through a truncation factor that rises from about 0.3 to 1 as the signal strengthens. For a deterministic logistic-series learner, we prove a projected expansion and full-pipeline bootstrap result. In the machine-learning designs studied, normal intervals based on a full-pipeline bootstrap attained nominal coverage for generalized additive model (GAM), multivariate adaptive regression spline (MARS), and neural-backfit imputation learners; extending the proof to these adaptive algorithms remains open. We illustrate the method on wine-quality data by estimating the latent-scale effect of volatile acidity on an ordinal quality score.
+  Double Machine Learning (DML) pairs Neyman-orthogonal scores with cross-fitting to estimate causal effects under flexible adjustment. For categorical outcomes, existing DML methods can target probability- or distribution-scale contrasts, but the partially linear latent-utility coefficient requires different machinery. A binary logistic estimator supplies that coefficient under a logit link; we are aware of no ordinal counterpart. We introduce SUDO (Surrogate-Assisted DML), which treats the latent outcome behind a binary or ordinal response as missing data. Each observation is completed to a continuous *surrogate* drawn from the assumed error distribution and truncated to the interval implied by its observed category, after which ordinary partialling-out applies. The completions form multiple imputations. In the parametric designs studied, Rubin pooling attained near-nominal coverage only with *proper* draws that redraw the imputation model's parameters, including ordinal thresholds; naive and improper draws under-covered. The method accommodates multiple links, and its surrogate residuals provide a specification diagnostic. We also derive how imputation-model error reaches the target: it enters at first order through a truncation factor that rises from about 0.3 to 1 as the signal strengthens. For a deterministic logistic-series learner, we prove a projected expansion and full-pipeline bootstrap result under explicit series conditions. In the machine-learning designs studied, normal intervals based on a full-pipeline bootstrap attained nominal coverage for generalized additive model (GAM), multivariate adaptive regression spline (MARS), and neural-backfit imputation learners; extending the proof to these adaptive algorithms remains open. We illustrate the method on wine-quality data by estimating the latent-scale effect of volatile acidity on an ordinal quality score.
 format:
   arxiv-pdf:
     keep-tex: false
@@ -78,8 +78,8 @@ coverage from clear under-coverage.
 **Contributions.**
 
 1. A DML-assisted estimator for binary and ordinal latent-utility effects in
-   one framework, not tied to the logit link, with a built-in link
-   diagnostic.
+   one framework, not tied to the logit link, with a built-in
+   specification diagnostic.
 2. The finding that only the proper multiple-imputation draw scheme attained
    nominal coverage in the designs we study, quantified against naive and
    improper alternatives.
@@ -127,9 +127,10 @@ Four assumptions identify $\theta_0$.
    $X$.
 3. *A correctly specified latent distribution.* The completion draws from
    $F$ using the assumed cutpoints, so the conditional law of
-   $\varepsilon$, not merely its mean, must be correct. The link diagnostic
-   monitors this assumption, and the propagation analysis shows that the
-   estimate is especially sensitive to its failure.
+   $\varepsilon$, not merely its mean, must be correct. The surrogate-residual
+   diagnostic monitors the fitted specification, of which this is one part,
+   and the propagation analysis shows that the estimate is especially
+   sensitive to its failure.
 4. *Overlap.* Treatment retains support after adjustment, so its residual is
    not annihilated.
 
@@ -186,7 +187,7 @@ conditional law of $U$ given $(D, X)$. Therefore,
 $E[S \mid D, X] = E[U \mid D, X]$ (Theorem 1 of @cheng2021) and the
 completed data satisfy
 
-$$S = \theta_0 D + g_0(X) + \eta, \qquad E[\eta \mid D, X] = 0$$ {#eq-completed}
+$$S = \theta_0 D + g_0(X) + \eta, \qquad E[\eta \mid D, X] = 0$$
 
 with the same $g_0$ as in @eq-latent, so FWL recovers $\theta_0$. This is
 the exact case. With an estimated index $\hat V$ the equality holds only
@@ -278,7 +279,7 @@ A *proper* draw redraws the imputation model's parameters,
 $\beta^{(b)} \sim N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$
 (thresholds included in the ordinal case), before each completion, the
 large-sample normal form of Rubin's posterior-predictive requirement. @tbl-ladder shows the three
-schemes moving coverage from 0.80 (naive) to 0.93 (improper) to 0.96-0.97
+schemes moving coverage from 0.80 (naive) to 0.92 (improper) to 0.96-0.97
 (proper).
 
 $T$ must account for three things that vary from draw to draw: the sampling
@@ -413,9 +414,13 @@ $w = m(1-m)$.
 **Self-correction weakens with signal.** Because $Y$ comes from the truth,
 truncation pulls $S$ toward the correct interval, giving $c < 1$. As the
 signal grows and $Y$ becomes nearly deterministic, however, it adds no
-information beyond $\hat V$ and $c \to 1$. This loss of self-correction,
-rather than numerical instability, makes inference hardest at strong effect
-sizes.
+information beyond $\hat V$ and $c \to 1$. For a *fixed* index
+misspecification, this loss of self-correction is what makes bias hardest to
+control at strong effect sizes: less of the index error is damped away. It is
+not the whole story when the imputation model is correctly specified, where
+@sec-theory shows the variance components themselves move against us. Nor
+does it license the reverse reading, since $c \to 1$ is also the regime in
+which the linearization of $\psi$ is most accurate.
 
 **Covariate-direction error can survive partialling.** The opposite might
 seem natural because residualized treatment is orthogonal to any function of
@@ -489,10 +494,12 @@ training algorithm. We implement it with a generalized additive model
 (GAM), multivariate adaptive regression spline (MARS) bases followed by a
 joint logistic fit, and neural-network backfitting. All three adaptive
 learners meet the Monte Carlo-aware bias criterion across effect sizes in
-the common comparison in @sec-sims. We also implement a deterministic
-Hermite-series learner as a proof reference. Theorem S1 proves its projected
-first-order expansion, and Theorem S2 proves bootstrap stability under
-explicit series conditions; it is not the practical default.
+the common comparison in @sec-sims. We also state the corresponding
+results for a deterministic series dictionary: Theorem S1 gives its projected
+first-order expansion and Theorem S2 its bootstrap stability, both under
+explicit series conditions. The fixed degree-three Hermite learner we run is
+a numerical reference for those results rather than an instance of them, for
+the reason given in @sec-theory, and it is not the practical default.
 
 For inference, we use a *full-pipeline bootstrap*, the nonparametric
 counterpart of the proper draw. A parametric model injects imputation-model
@@ -506,11 +513,11 @@ imputation-model variability. In the designs studied, normal intervals using
 this full-pipeline bootstrap attain nominal coverage for all three adaptive
 learners (@sec-sims).
 
-Conjecture M2 states a learner-class bootstrap result under a projected
+Implication M2 states a learner-class bootstrap result under a projected
 bootstrap-stability condition and conditional nuisance rates. Under those
 conditions, fixed and redrawn regular folds are both admissible, and only the
 integrated generated-outcome map must be differentiable, not every raw
-inverse-transform draw. The conjecture also identifies a fixed-imputation
+inverse-transform draw. Implication M2 also identifies a fixed-imputation
 centering issue. Fresh surrogate randomness makes the bootstrap variance
 consistent, but it does not justify the usual distribution centered at one
 realized randomized estimate. The supported procedure is therefore the
@@ -584,7 +591,7 @@ nn <- function(x, d = 3) sprintf(paste0("%.", d, "f"), x)   # unsigned
 
 **Proper draws are what deliver coverage.** With a simple binary design and
 a correct parametric imputation model, only the proper scheme reaches
-nominal coverage; the naive interval covers 0.80 and the improper 0.93
+nominal coverage; the naive interval covers 0.80 and the improper 0.92
 (@tbl-ladder).
 
 ```{r}
@@ -622,8 +629,10 @@ $B=25$ and 200 replications has bias 0.016, coverage 0.960, and $T/V=1.214$
 with Monte Carlo standard error 0.122. Per-draw refitting is therefore the
 validated ordinal procedure, at the cost of fitting the outcome nuisance
 $B$ times rather than once.
-The residual variance ratio is compatible with one at this simulation's
-precision and is not evidence of a remaining ordinal anomaly. Rubin's
+The isolation experiment and the full stage report $T/V$ on opposite sides
+of one, 0.942 and 1.214, but each is within two Monte Carlo standard errors
+of one at its own resolution, so they do not conflict and neither is
+evidence of a remaining ordinal anomaly. Rubin's
 variance is guaranteed to err safe only under conditions we have not
 verified here (a valid imputation model together with a self-efficient
 complete-data analysis), and under uncongeniality it can be biased in
@@ -651,9 +660,17 @@ knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 **Link misspecification.** Generating Gumbel noise but assuming a logistic
 link substantially biases the latent-scale effect (+0.77 for binary, +0.58
 for ordinal outcomes, with zero coverage). The correct link removes this
-bias (bias $<0.005$, nominal coverage). The variance-drift diagnostic flags
-the wrong link ($p \approx 2\times 10^{-4}$) and clears the correct one
-($p \approx 0.43$).
+bias (bias $<0.005$, with valid-to-conservative coverage of 0.980 and
+0.975). A surrogate-residual check behaves as expected: the conditional
+second moment drifts with $X$ under the misspecified fit (nominal
+$p \approx 2\times 10^{-4}$) and not under the correct one
+($p \approx 0.46$). Under a correctly specified model the surrogate residual
+has constant conditional mean and variance [@liu2018], so drift is evidence
+against the fitted specification. It is not specific to the link, since
+scale heterogeneity, omitted mean structure, or non-proportionality would
+also produce drift, and the reported values aggregate over surrogate draws
+and are not calibrated for parameter estimation. We therefore use this as a
+diagnostic rather than a test.
 
 **First-order versus second-order sensitivity.** @tbl-sensitivity
 traces the bias after perturbing one input by a known function. Standard DML
@@ -675,7 +692,7 @@ $\bar c_1$ (0.669 at $\theta_0 = 1.5$, 0.861 at $\theta_0 = 3$) to within
 meets the bias criterion at both effect sizes. Pairing it with the
 full-pipeline bootstrap brings strong-effect normal coverage from 0.86 to
 0.98; the corresponding percentile coverage is 0.95. The normal interval is
-the inferential procedure supported by Conjecture M2 under its stated
+the inferential procedure supported by Implication M2 under its stated
 conditions. The percentile result is retained as an empirical comparison
 from the original validation. With 100 replications, either coverage
 estimate has Monte Carlo uncertainty of about $\pm 0.03$; the bootstrap SD
@@ -716,13 +733,40 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r", "r"))
 ```
 
+**Partial linearity alone is not sufficient.** Two further partially-linear
+arms failed the bias criterion, both at $n = 2000$ with 100 replications. An
+interaction-constrained gradient-boosted index, left deliberately under-tuned
+to test whether the structural constraint protects a poorly fitted index on
+its own, had bias $-0.09$ at $\theta_0 = 1.5$ and $-0.16$ at $\theta_0 = 3$.
+A componentwise-boosted index whose stopping iteration was chosen by
+cross-validated predictive risk was worse, at $-0.17$ and $-0.44$. The second
+result is the informative one: predictive risk is not the objective that
+governs first-order target bias, so a rule that is principled for prediction
+need not control it. We ran no fixed-stopping comparator, so this does not
+show that the cross-validated rule made that learner worse than an untuned
+one. Both arms were scored with the recentered within-fold bootstrap rather
+than the full-pipeline bootstrap, so their coverage (0.85 and 0.73; 0.70 and
+0.11) is not comparable to @tbl-pl-learners and indicates only the scale of
+the failure. Partial linearity excludes treatment-by-covariate artifacts; it
+does not remove error in the treatment coefficient or in the covariate
+component.
+
+**How the learners were selected.** The MARS and neural-backfit
+configurations were screened on target-level Monte Carlo bias against a known
+$\theta_0$, then evaluated in separate runs. This shows that the selected
+configurations met the prespecified bias and coverage criteria in these
+designs. It is not a selection rule available to an analyst working from
+data. A criterion
+computable without $\theta_0$, together with verification that (M2) and (MB1)
+survive the selection, remains open.
+
 The bootstrap comparison uses paired generated datasets and reruns each
 learner with either one fixed regular fold partition or folds redrawn in
 every resample. @tbl-ml-bootstrap reports the direct comparison. The
 within-fold method refits only the imputation learner inside the original
 training folds, while the improper method holds its fitted index fixed.
 Their SE ratios therefore locate which layer of variation is omitted. The
-normal interval is the procedure supported by Conjecture M2 under its high-level
+normal interval is the procedure supported by Implication M2 under its high-level
 conditions; percentile and conventionally centered studentized intervals
 are included as fixed-$B$ empirical benchmarks.
 
@@ -808,7 +852,7 @@ quality. The estimate is stable across linear and partially-linear spline
 imputation models (@tbl-wine). As a model-based comparator, we also report
 the treatment coefficient from the cumulative-link fit itself. Its standard
 error is smaller (white: 0.031
-versus 0.053-0.074) because it relies directly on the full parametric
+versus 0.064-0.065) because it relies directly on the full parametric
 outcome model, whereas SUDO leaves the partialling regressions flexible and
 propagates the completion and cross-fitting variability. The narrower
 model-based interval can be efficient when its stronger functional-form
@@ -821,8 +865,9 @@ white), which keeps the effect comparable across the two wines instead of
 tied to the raw acetic-acid scale. The proportional-odds reading then makes
 the magnitude concrete: a one-SD rise in volatile acidity multiplies the
 odds of a wine scoring above any fixed quality level by $\exp(\hat\theta)$,
-about $0.59$ for red ($\hat\theta = -0.53$) and $0.62$ to $0.66$ for white,
-a reduction of roughly a third to 40% in those odds per standard deviation.
+about $0.59$ for red ($\hat\theta = -0.52$) and $0.64$ for white
+($\hat\theta = -0.45$), a reduction of roughly 36 to 40% in those odds per
+standard deviation.
 
 ```{r}
 #| label: tbl-wine
@@ -858,11 +903,11 @@ knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 
 The negative sign is stable across the reported sensitivity checks. Dropping
 any single covariate from the adjustment set leaves the effect in
-$[-0.67, -0.46]$ for red and $[-0.49, -0.37]$ for
+$[-0.68, -0.47]$ for red and $[-0.52, -0.42]$ for
 white, every interval excluding zero, so the estimate does not hinge on one
 adjustment choice. Read through the omitted-variable-bias framework
-[@cinelli2020], an unobserved confounder would have to explain about 16%
-(red) and 11% (white) of the residual variation in both volatile acidity and
+[@cinelli2020], an unobserved confounder would have to explain about 15%
+(red) and 10% (white) of the residual variation in both volatile acidity and
 latent quality to bring the effect to zero; weaker confounding leaves it
 negative. We report these robustness values as a heuristic calibration
 rather than a formal bound: the Cinelli-Hazlett formula is derived for
@@ -883,8 +928,8 @@ the estimate to zero is $\delta_D = -\hat\theta / \bar c_1$. Evaluating
 $\bar c_1$ at the fitted index with the continuous-treatment multiplier
 $E[c(\eta) D R]/E[R^2]$ and the general-$J$ pass-through of Proposition A1
 gives $\bar c_1 = 0.21$ (red) and $0.17$ (white). The cumulative-link model
-would therefore have to be wrong about volatile acidity by $+2.55$ and
-$+2.38$ respectively, which is 4.2 and 4.8 times the coefficient it actually
+would therefore have to be wrong about volatile acidity by $+2.51$ and
+$+2.65$ respectively, which is 4.1 and 5.3 times the coefficient it actually
 fits. This calculation addresses treatment-direction error only. Conditional
 on covariate-direction misspecification being negligible, it shows that a
 large treatment-coefficient error would be required to erase the estimate;
@@ -913,7 +958,8 @@ imputations, and in our experiments only proper draws, which redraw the
 imputation model's parameters (thresholds included), attain nominal
 coverage. The method is link-flexible over any distribution for which the
 truncated draw and reference are available, and its residuals give a
-diagnostic that can flag, though not confirm, a wrong link.
+diagnostic that can flag a misspecified fit, though it neither confirms the
+specification nor isolates the link as the cause.
 
 The propagation analysis makes the main tradeoff explicit. The imputation
 model sits outside the orthogonality guarantee, so its error reaches the
@@ -925,16 +971,20 @@ draws and the three validated partially-linear learners with a
 full-pipeline bootstrap attain nominal coverage. Partial linearity alone
 does not provide this guarantee. The imputation learner must still estimate
 the covariate component well and satisfy the projected stability conditions
-needed for inference.
+needed for inference, and two partially-linear arms we tried did not. The
+MARS and neural-backfit configurations were themselves selected against a
+known $\theta_0$, so supplying a selection criterion an analyst could
+compute from data remains open.
 
 Several problems remain open. @sec-theory separates the proved results from
 the conjectured ones. Theorem S1 proves the projected expansion for a
 deterministic logistic-series learner, and Theorem S2 verifies its
 full-pipeline bootstrap stability under explicit series and conditional
-bootstrap conditions. The broader adaptive-learner statements remain
-Conjectures M1 and M2: their regularity conditions are stated but not
-minimized, and the projected asymptotic-linearity condition has not been
-proved separately for GAM, MARS, or neural backfitting. SUDO therefore has
+bootstrap conditions. The broader adaptive-learner statements are
+Implications M1 and M2, which hold under high-level learner conditions that
+are stated but not minimized. What remains conjectural is that GAM, MARS,
+and neural backfitting satisfy those conditions, the projected
+asymptotic-linearity requirement in particular. SUDO therefore has
 a proved projected expansion and bootstrap result for the theorem-reference
 specialization, while inference with the adaptive learners remains
 simulation-supported. Natural next steps are to extend the adaptive results
@@ -945,12 +995,23 @@ because its posterior draws are literal proper imputations. A BART version
 did not improve on the bootstrap in the one design we tried, so the
 conditions under which that route succeeds remain open.
 
+Two narrower theoretical questions also remain. Conjecture A2 leaves open when
+$G'C = \sigma_u^2$: the identity fails in both directions in the validated
+testbeds, though the resulting 1% to 2% discrepancy is smaller than the
+fixed-$B$ chi-square variation at ordinary imputation counts. Strong-signal
+theory separately needs primitive conditions for dominated differentiability
+of the integrated completion map and for excluding asymptotic separation as
+category probabilities approach zero or one.
+
 # Data and software
 
 The wine-quality data come from the University of California, Irvine Machine
 Learning Repository [@cortez2009]. The `sudo` Python package provides the
-estimator, and a parallel set of R scripts prototypes and validates each
-step. The open-source project repository contains the code and committed
+parametric estimator for binary and ordinal outcomes, including proper draws
+and the per-completion ordinal outcome-nuisance refit. The partially-linear
+machine-learning imputation learners and the full-pipeline bootstrap are
+implemented in R, which is also where every method is prototyped and
+validated before release. The open-source project repository contains the code and committed
 result files behind every table and figure under the Massachusetts Institute
 of Technology (MIT) License:
 <https://github.com/bgreenwell/sudo>.
@@ -971,13 +1032,17 @@ fixed-$B$ asymptotic distribution of the pooled estimate; and the resulting
 account of Rubin's variance.
 
 The labels distinguish the status of each result. Direct differentiation,
-conditioning, or inequalities establish the propositions. The general
-asymptotic expansions and adaptive-learner bootstrap statements are labeled
-conjectures because the manuscript gives heuristic derivations and numerical
-verification, not complete proofs. The deterministic-series specialization
-is labeled a theorem because complete proofs are supplied. The
-learner-specific projected asymptotic-linearity and bootstrap-stability
-conditions remain unproved for the implemented adaptive learners. The
+conditioning, or inequalities establish the propositions. Conjectures A1 and
+A2 are labeled as such because we give heuristic derivations and numerical
+support rather than proofs. Implications M1 and M2 are conditional
+calculations: they follow from high-level learner conditions, and what
+remains conjectural is whether the implemented adaptive learners satisfy
+those conditions, not the displayed conclusions given them. The
+deterministic-series specialization is stated as a theorem because explicit
+series and conditional-bootstrap conditions are given and the arguments are
+carried out under them. The learner-specific projected asymptotic-linearity
+and bootstrap-stability conditions remain unproved for the implemented
+adaptive learners. The
 project repository checks every closed-form expression numerically, using
 numerical differentiation for the pass-through derivatives and Monte Carlo
 for the variance decomposition.
@@ -1038,7 +1103,7 @@ unnormalized matrix would inject variance that does not vanish with $n$.
 **Scope.** Assumption (A2) describes the parametric case: one regular
 maximum-likelihood fit on the full data, with an estimated covariance from
 which to draw. The ordinal designs and wine application use this case.
-Conjecture M1 separately treats a cross-fitted flexible imputation index and
+Implication M1 separately treats a cross-fitted flexible imputation index and
 does not require a single $\hat\beta$ or covariance matrix. Its central
 condition is an asymptotically linear, residual-weighted projection of the
 fitted index error. This learner-level condition does not follow from
@@ -1139,7 +1204,7 @@ E\!\left[|R|\{\hat v_{-k}(D,X)-v_0(D,X)\}^2\mid I_k^c\right]=o_p(1).$$
 **(M2)** The residual-weighted projected error has an asymptotically linear
 representation for some mean-zero, square-integrable $\rho(W)$,
 $$\sqrt n\sum_k\frac{|I_k|}{n}E[R\Delta_k(D,X)\mid I_k^c]
-=\frac1{\sqrt n}\sum_{i=1}^n\rho(W_i)+o_p(1).$$ {#eq-ml-projection}
+=\frac1{\sqrt n}\sum_{i=1}^n\rho(W_i)+o_p(1).$$
 **(M3)** The cross-fitted adjustment nuisances satisfy (A3), including after
 replacing the oracle completion by the fitted completion, and their
 interactions with $\hat v_{-k}-v_0$ are $o_p(n^{-1/2})$. **(M4)** The
@@ -1160,7 +1225,8 @@ up to fold averaging. The treatment-coefficient error and the flexible
 $X$-direction error both enter at first order. The latter need not vanish:
 $R$ is orthogonal to functions of $X$, but $R c(v_0)$ generally is not.
 
-**Conjecture M1.** *Under (A1) and (M1)-(M4), with fixed $K$ and fixed $B$,*
+**High-level implication M1 (adaptive-learner expansion).** *Under (A1) and
+(M1)-(M4), with fixed $K$ and fixed $B$,*
 $$\sqrt n(\hat\theta_B-\theta_0)
 =J_\theta^{-1}\frac1{\sqrt n}\sum_{i=1}^n
 \left[e_iR_i+\rho(W_i)+R_i\bar u_i\right]+o_p(1),\qquad
@@ -1171,7 +1237,7 @@ N(0,V_B^{\mathrm{ML}}),\qquad
 V_B^{\mathrm{ML}}=J_\theta^{-2}
 \left\{\operatorname{Var}(eR+\rho(W))+\frac{\sigma_u^2}{B}\right\}.$$ {#eq-ml-vb}
 
-*Heuristic derivation.* Conditional on the training sample for fold $k$,
+*Argument.* Conditional on the training sample for fold $k$,
 Taylor-expand @eq-ml-delta at $v_0$. Proposition A1 gives the linear term in
 @eq-ml-first; (M1) and (M4) control the quadratic remainder. Cross-fitting
 makes the empirical fluctuation of the vanishing index error $o_p(1)$, while
@@ -1185,6 +1251,13 @@ law is unconditional over the observed sample and auxiliary uniforms.
 Conditional on the observed sample, the uniforms represent imputation Monte
 Carlo error rather than repeated-sample uncertainty.
 
+The unresolved learner-specific conjecture is that the implemented GAM,
+MARS, and neural-backfit learners satisfy (M2) and the remaining uniform
+remainder requirements in (M1), (M3), and (M4). The argument above also
+compresses the held-out empirical fluctuation of $R\Delta_k$, the
+denominator replacement, and the joint triangular-array central limit
+theorem, none of which is formalized here.
+
 The parametric expression follows as a corollary. If
 $\hat v=v(\hat\beta)$ is regular, then
 $\rho(W)=G'\operatorname{IF}_\beta(W)$ and
@@ -1196,8 +1269,8 @@ uses the full-pipeline bootstrap to propagate its sampling variability.
 
 ### A proved reference learner
 
-For a deterministic logistic-series learner, the general conjecture becomes
-a theorem. This learner serves as a proof reference rather than the
+For a deterministic logistic-series learner, the conditions behind the
+general implication can be verified, and it becomes a theorem. This learner serves as a proof reference rather than the
 practical default. Let
 $$z_n(D,X)=\{1,D,P_n(X)'\}',\qquad
 \hat v_{-k}(D,X)=z_n(D,X)'\hat\beta_{-k},$$
@@ -1216,7 +1289,7 @@ $$
 h_n(\beta)=E[R\{\psi(z_n'\beta;v_0)-v_0\}].
 $$
 
-The theorem uses five series-learner (SL) conditions. **(SL1)** The dictionary is
+The theorem uses six series-learner (SL) conditions. **(SL1)** The dictionary is
 deterministic, has dimension $q_n$, the eigenvalues of $A_n$ are bounded away
 from zero and infinity, and the largest eigenvalue of $E[z_nz_n']$ is
 bounded. **(SL2)** Uniformly over unit vectors $t$,
@@ -1229,13 +1302,17 @@ $\sqrt n\,h_n(\beta_n)\to0$ and
 $$\sqrt n\,E[|R|\{v_n(D,X)-v_0(D,X)\}^2]\to0.$$
 **(SL5)** $\rho_n$ obeys Lindeberg's condition,
 $\operatorname{Var}\{\rho_n(W)\}\to\tau^2<\infty$, and the adjustment
-nuisances satisfy (M3). These are standard series restrictions specialized
+nuisances satisfy (M3). **(SL6)** With fixed $K$, the fold partition is
+deterministic or drawn independently of the observations, and
+$$\max_{1\le k\le K}\bigl||I_k|/n - 1/K\bigr|\to0,$$
+in probability if the partition is random. These are standard series
+restrictions specialized
 to the residual-weighted functional. The rate and functional conditions are
 in the spirit of @newey1997series; bootstrap theory for semiparametric
 generalized additive models provides a related but different result
 [@hardle2004bootstrap].
 
-**Theorem S1 (series expansion).** *Under (A1), (M4), and (SL1)-(SL5), with
+**Theorem S1 (series expansion).** *Under (A1), (M4), and (SL1)-(SL6), with
 fixed $K$ and fixed $B$, the deterministic series learner satisfies (M2)
 with influence $\rho_n$. Consequently*
 $$
@@ -1265,13 +1342,24 @@ expansion.
 A Taylor expansion of $h_n$ at $\beta_n$ has derivative $a_n$ and quadratic
 remainder bounded by a constant times
 $E[|R|\{z_n'(\hat\beta_{-k}-\beta_n)\}^2]$. Conditions (SL1)-(SL2) make the
-fold-averaged remainder $o_p(n^{-1/2})$. In balanced $K$-fold
-cross-fitting, each observation occurs in exactly $K-1$ training samples,
-and
+fold-averaged remainder $o_p(n^{-1/2})$. Write $p_k=|I_k|/n$. For
+$i\in I_j$ the fold-averaged weight on $\rho_n(W_i)$ is $g_j/n$ with
+$g_j=\sum_{k\ne j}p_k/(1-p_k)$, and exactly balanced folds give $g_j=1$,
+so that
 $$
 \sum_k\frac{|I_k|}{n}\frac{\mathbf1\{i\in I_k^c\}}{|I_k^c|}=\frac1n.
 $$
-The fold-averaged linear terms therefore equal
+In general, because (SL6) makes the partition independent of the
+observations, $\operatorname{Var}\{|I_j|^{-1/2}\sum_{i\in I_j}\rho_n(W_i)\}$
+is $O(1)$ by the variance clause of (SL5), so
+$$
+\sqrt n\sum_i\Bigl(\frac{g_{j(i)}}{n}-\frac1n\Bigr)\rho_n(W_i)
+=\sum_{j=1}^K(g_j-1)\frac1{\sqrt n}\sum_{i\in I_j}\rho_n(W_i)
+=O_p\bigl(\max_j|g_j-1|\bigr),
+$$
+which is $o_p(1)$ under (SL6) since $p\mapsto p/(1-p)$ is continuous at
+$1/K$. Asymptotic balance therefore suffices; no rate on the imbalance is
+needed. The fold-averaged linear terms equal
 $n^{-1}\sum_i\rho_n(W_i)+o_p(n^{-1/2})$. Condition (SL4) removes the series
 approximation shift at the target scale. The generated-outcome Taylor
 remainder is also negligible by (SL4) and (M4). Finally, (M3) removes the
@@ -1283,10 +1371,19 @@ The target-undersmoothing clause in (SL4) is essential. If only its
 quadratic-approximation clause holds, the same argument centers the estimator
 at the series-projection target
 $$\theta_n=\theta_0+J_\theta^{-1}h_n(\beta_n),$$
-not at $\theta_0$. The fixed degree-three implementation below measures this
-population shift directly. A growing dictionary can satisfy the
-undersmoothing condition; a convenient fixed dictionary should not be
-treated as automatically eliminating approximation bias.
+not at $\theta_0$. The fixed degree-three implementation below measures that
+shift and finds it nonzero, so it checks the projected expansion around its
+own series target rather than instantiating the $\theta_0$-centered
+conclusion. Absent exact representation of the target, satisfying (SL4)
+requires a growing dictionary, and (SL2) then binds: its fourth-moment clause is dimension-free, whereas normalized
+Hermite polynomials have fourth moments growing exponentially in the
+polynomial degree, and local spline or Fourier bases normalized to keep the
+Gram eigenvalues bounded have fourth moments growing with $q_n$. Standard
+series analysis controls a growing basis envelope instead
+[@newey1997series]. Restating (SL2) in envelope form, and rechecking the
+Hessian and remainder rates that rest on it, is left open. Theorem S1 should
+therefore be read as a conditional result, not one with a demonstrated
+growing-dictionary instance.
 
 ## Bootstrap propagation for the learner class
 
@@ -1319,7 +1416,8 @@ inverse-transform draw need not be differentiable for every fixed uniform at
 a truncation boundary. Its integrated score $\psi$ must be differentiable,
 and conditional $L_2$ continuity controls the centered-draw remainder.
 
-**Conjecture M2.** *Under (A1), (M1)-(M4), and (MB1)-(MB4), with fixed $K$
+**High-level implication M2 (full-pipeline bootstrap).** *Under (A1),
+(M1)-(M4), and (MB1)-(MB4), with fixed $K$
 and fixed $B$,*
 $$
 \sup_t\left|
@@ -1330,7 +1428,7 @@ $$
 n\,\operatorname{Var}^*(\hat\theta_B^*)\to_pV_B^{\mathrm{ML}}.
 $$ {#eq-ml-bootstrap}
 
-*Heuristic derivation.* Apply the exchangeably weighted expansion to
+*Argument.* Apply the exchangeably weighted expansion to
 $eR+\rho(W)$ using (MB1)-(MB2). Conditional on each resampled observation,
 the fresh centered completion terms are independent across observations and
 draws, with limiting contribution $\sigma_u^2/B$; (MB3) permits replacing
@@ -1338,6 +1436,11 @@ the fitted index in that term by its limit. The conditional Lindeberg
 central limit theorem and (MB4) give the same law for fixed or redrawn
 regular folds. Conditional second-moment convergence gives the variance
 statement.
+
+The unresolved bootstrap conjecture is that the implemented adaptive learners
+satisfy (MB1) and the conditional uniformity requirements in (MB2)-(MB4).
+The conditional Lindeberg and second-moment steps are likewise stated rather
+than formalized.
 
 **Theorem S2 (series full-pipeline bootstrap).** *Suppose the conditions of
 Theorem S1 hold uniformly on Efron resamples, the empirical Hessian and score
@@ -1379,12 +1482,12 @@ bootstrap distribution may instead estimate $\mu_n^*$ by the mean of the
 outer replicates. Raw percentile and conventionally centered studentized
 intervals require either $B\to\infty$ fast enough to remove this centering
 gap or an additional randomized-estimator argument. We report them as
-empirical comparisons, not consequences of Conjecture M2.
+empirical comparisons, not consequences of Implication M2.
 
 Neither (M2) nor its bootstrap analogue (MB1) has been proved separately for
-the implemented GAM, MARS, or neural-backfit algorithms. The conjectures
-therefore identify the learner-specific obligations; numerical performance
-does not replace those proofs. Redrawing folds is also unnecessary when
+the implemented GAM, MARS, or neural-backfit algorithms. Implications M1 and
+M2 therefore isolate the learner-specific obligations; numerical performance
+does not replace them. Redrawing folds is also unnecessary when
 (MB4) holds, although it remains the implementation default because it
 propagates partition variability. At its Monte Carlo resolution, the paired
 check in @sec-numverify finds fixed and redrawn folds indistinguishable.
@@ -1481,10 +1584,17 @@ imputations. As $B \to \infty$ the randomness in $B_{\!*}$ averages away and
 the statement strengthens to a probability limit for $T$ itself,*
 $$n\,T - V_\infty \;\to_p\; 2 J_\theta^{-2}\bigl(\sigma_u^2 - G'C\bigr),
 \qquad V_\infty = J_\theta^{-2}\bigl(\sigma_e^2 + G'\Sigma_\beta G + 2G'C\bigr).$$
-*Either way the $1/B$ terms cancel, so the discrepancy is free of $B$, and
-Rubin's variance is asymptotically exact if and only if $G'C = \sigma_u^2$,
-conservative when $G'C < \sigma_u^2$, and anti-conservative when
-$G'C > \sigma_u^2$.*
+*Either way the $1/B$ terms cancel, so the discrepancy is free of $B$.
+Rubin's variance is asymptotically exact in expectation over the imputation
+draws if and only if $G'C = \sigma_u^2$, conservative in that sense when
+$G'C < \sigma_u^2$, and anti-conservative when $G'C > \sigma_u^2$.*
+
+At fixed $B$ this is a statement about the mean of $T$, not about $T$
+itself. By @eq-bstar, $n\,T$ retains a nondegenerate chi-square component,
+so $T$ is not ratio-consistent for $V_B/n$ even when the identity holds.
+That finite-$B$ randomness does not invalidate Barnard-Rubin inference,
+whose reference distribution exists precisely to absorb uncertainty in the
+between-draw variance; @sec-numverify measures how well it does so.
 
 *Heuristic derivation.* Substitute the probability limit of $n\bar W$ and
 the conditional mean of @eq-bstar into Rubin's total, then subtract
@@ -1499,7 +1609,7 @@ Q_0=J_\theta^{-2}(1+1/B)V_{\mathrm{draw}},
 $$
 and let $\nu=B-1$.
 
-**Conjectured fixed-$B$ reference law.** *Under (A1)-(A5),*
+**Conjecture A3 (fixed-$B$ reference law).** *Under (A1)-(A5),*
 $$
 \left\{\sqrt n(\bar\theta-\theta_0),\,nT\right\}
 \ \to_d\
@@ -1533,7 +1643,7 @@ E_X\!\left[
 2\Phi\!\left\{q_B
 \sqrt{\frac{W_0+Q_0X/\nu}{V_B}}\right\}-1
 \right]=1-\alpha.
-$$ {#eq-fixed-b-critical}
+$$
 A convenient approximation matches the first two moments of the random
 denominator. With
 $$
@@ -1569,11 +1679,15 @@ at $n = 20{,}000$ and, being free of $B$, do not shrink as $B$ grows. The
 mechanism is visible in the table. As the signal grows the
 observed $Y$ carries less information beyond the index, so $\sigma_e^2$
 falls while $\sigma_u^2$ and $G'C$ rise, and $G'C$ overtakes $\sigma_u^2$.
-This is a more precise account of why inference is hardest at strong effect
-sizes than the informal argument in the body, and it corrects a natural but
-mistaken reading: $c \to 1$ is the regime in which $\psi$ is *closest* to
-the identity, so the linearization is at its most accurate there, and cannot
-be what degrades.
+This is the variance-side account of why inference is hardest at strong
+effect sizes, and it is separate from the bias-side pass-through argument in
+the body. The two must not be conflated. Rising $c$ explains why a *given*
+index misspecification survives more nearly intact; it cannot itself explain
+degradation under a correctly specified imputation model, because $c \to 1$
+is precisely the regime in which $\psi$ is closest to the identity and its
+linearization is most accurate. Under correct specification the degradation
+is in the variance components above and in imputation-model estimation
+error.
 
 The practical effect is small: a 1.5% variance error corresponds to roughly
 0.7% in a standard error, well within the Monte Carlo error of the coverage
@@ -1589,7 +1703,7 @@ falls short of $V_B$.
 The deficit is dominated by the imputation channel $G'\Sigma_\beta G$
 whenever $G \ne 0$ and the signal is not weak, though it is not exactly that
 quantity, since the cross term and the draw noise also enter. This is the
-0.93 versus 0.97 coverage gap in @tbl-ladder.
+0.92 versus 0.97 coverage gap in @tbl-ladder.
 
 ## Bias under a misspecified imputation model
 
@@ -1610,15 +1724,22 @@ $-w$; the control-arm error is zero by assumption, so only
 $c(\theta_0 + g_0)$ survives, and $J_\theta = E[w]$ supplies the
 denominator. $\square$
 
-Both restrictions matter. The displayed $\bar c_1$ evaluates $c$ on the
-treated arm only, which is correct precisely because the control-arm error
-was set to zero; a general perturbation weights both arms as
-$m\,c(\theta_0 + g_0) + (1 - m)\,c(g_0)$. For continuous $D$ with index
-error $\delta_D D$ the multiplier is instead
-$\bar c_1 = E[c(\eta_0) D R] / E[R^2]$, which is a different expression.
-With a simultaneous covariate-direction perturbation, the first-order leak
-is @eq-leak, nonzero because $c$ depends on $D$
-through $\eta$ and so is not annihilated by projecting on $R$.
+Both restrictions matter. Write $\eta_d = \theta_0 d + g_0(X)$ and consider a
+local path whose treated- and control-arm index errors are
+$\varepsilon h_1(X)$ and $\varepsilon h_0(X)$. Conditioning
+$E[R\,\Delta_D]$ on $X$ gives $w(\Delta_1 - \Delta_0)$, so
+$$\theta(\varepsilon) - \theta_0
+= \varepsilon\,
+\frac{E\bigl[w\{c(\eta_1)h_1 - c(\eta_0)h_0\}\bigr]}{E[w]}
++ o(\varepsilon).$$
+Proposition A3 is the case $h_1 = 1$, $h_0 = 0$, which is why the displayed
+$\bar c_1$ evaluates $c$ on the treated arm only. Taking $h_1 = a + h$ and
+$h_0 = h$ adds the first-order covariate-direction leak of @eq-leak to that
+treated-arm term, and the leak is nonzero because $c$ depends on $D$ through
+$\eta$ and so is not annihilated by projecting on $R$. For continuous $D$
+with index error $\delta_D D$ the multiplier is instead
+$\bar c_1 = E[c\{\theta_0 D + g_0(X)\} D R] / E[R^2]$, which is a different
+expression.
 @tbl-sensitivity is the empirical counterpart for the treatment direction,
 recovering the predicted slope $\bar c_1$.
 
@@ -1647,7 +1768,7 @@ $$
 |L_X(h)|\leq
 J_\theta^{-1}\|h\|_w\,
 \|\bar c_1(h)-\bar c_0(h)\|_w .
-$$ {#eq-leak-bound}
+$$
 *Writing the first-order term as*
 $$L_X^{(1)}(h)=J_\theta^{-1}
 E[w\,h\{c(\eta_1)-c(\eta_0)\}],$$
@@ -1659,7 +1780,7 @@ $$
 \{\bar c_1(h)-c(\eta_1)\}
 -\{\bar c_0(h)-c(\eta_0)\}
 \right\|_w .
-$$ {#eq-leak-local}
+$$
 
 *Proof.* The fundamental theorem of calculus gives
 $\psi(\eta_d+h;\eta_d)-\eta_d=h\bar c_d(h)$. Conditioning
@@ -1852,7 +1973,7 @@ bootstrap resamples are complete. These checks validate the algebra and
 finite-sample behavior of the theorem reference. Theorems S1 and S2 provide
 the proof; the simulation does not.
 
-## Machine-learning expansion (Conjecture M1)
+## Machine-learning expansion (Implication M1)
 
 `R/theory_ml_expansion.R` compares the exact conditional generated-outcome
 shift $\psi(\hat v;v_0)-v_0$ with its linear approximation
@@ -1867,7 +1988,7 @@ generated-outcome part of (M1) is therefore second order in the fitted-index
 error in every implemented design. This check does not establish the
 learner-specific asymptotic representation in (M2).
 
-## Machine-learning bootstrap (Conjecture M2)
+## Machine-learning bootstrap (Implication M2)
 
 `R/theory_ml_bootstrap.R` compares fixed and redrawn folds on the same 30
 generated datasets for each learner and signal, with 15 outer resamples and
@@ -1914,7 +2035,8 @@ $B\in\{5,10,25,50,100\}$ and then checks it with 1,000 independent samples
 at $n=5{,}000$. Prediction and empirical coverage differ by at most 0.012
 across all 40 comparisons in @tbl-fixed-b. Normal inference is inadequate
 at small $B$ and strong signal; Barnard-Rubin is close to the exact mixture,
-and calibrated Satterthwaite coverage is within 0.006 of 0.95 in every cell.
+and the predicted calibrated Satterthwaite coverage is within 0.006 of 0.95
+in every cell.
 
 ```{r}
 #| label: tbl-fixed-b
