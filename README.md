@@ -102,8 +102,10 @@ writes a summary CSV to `R/results/`.
   renders to an arXiv PDF and generates its result tables from `R/results/`.
   Its asymptotic-theory appendix carries the pass-through map, the moment
   properties, the fixed-`B` variance, the pooled-variance analysis, and
-  proved expansion and bootstrap results for a deterministic-series
-  reference learner. The adaptive-learner extensions remain conjectures.
+  expansion and bootstrap results for a deterministic-series reference
+  learner, proved under explicit series conditions. The adaptive-learner
+  counterparts hold under high-level conditions that have not been verified
+  for the learners actually implemented.
 - `AGENTS.md` documents the workflow, layout, and key design decisions.
 
 ## Development

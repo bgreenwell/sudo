@@ -163,8 +163,13 @@ stopifnot(p_wrong < 0.05, p_right > 0.05)
 cat("PASS: rejects the misspecified fit, does not reject the correct one",
     "(one dataset, nominal p-values, not a calibrated test)\n")
 
-sm <- rbind(sm, data.frame(stage = 6, estimator = c("vardrift_wrong", "vardrift_right"),
-                           n_reps = 10, mean_est = c(p_wrong, p_right),
+# n_reps is the number of DATASETS everywhere else in this file, so it is 1
+# here: these are nominal p-values from a single dataset, each the median of
+# 10 surrogate draws. Not a replicated size or power estimate.
+sm <- rbind(sm, data.frame(stage = 6,
+                           estimator = c("vardrift_nominal_p_wrong",
+                                         "vardrift_nominal_p_right"),
+                           n_reps = 1, mean_est = c(p_wrong, p_right),
                            bias = NA, mc_se_bias = NA, sd = NA, rmse = NA,
                            mean_se = NA, coverage = NA, mc_se_cov = NA))
 write.csv(sm, "R/results/stage6_summary.csv", row.names = FALSE)

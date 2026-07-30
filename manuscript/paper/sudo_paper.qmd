@@ -299,11 +299,15 @@ for the black-box learners considered below.
 cumulative-link model supplies the index and thresholds; because the
 thresholds are parameters too, the proper draw perturbs them jointly with
 the coefficients, which is why we fit with a model whose covariance covers
-them. The error distribution $F$ remains an assumption. Under a correct
-link, the surrogate residuals $R = S - \hat V$ are homoscedastic. A smooth
-of $R^2$ on $X$, computed with an independent draw stream, can therefore
-flag link misspecification through variance drift that mean-based checks
-miss.
+them. The error distribution $F$ remains an assumption. Under a correctly
+specified model the surrogate residual $R_S = S - \hat V$, not to be confused
+with the treatment residual $R$ used throughout the theory, has constant
+conditional mean and variance [@liu2018]. A smooth of
+$(R_S - \mu_F)^2$ on $X$, where $\mu_F$ is the reference mean of the assumed
+error law and the residuals come from an independent draw stream, can
+therefore flag a misspecified fit through second-moment drift that mean-based
+checks miss. Centering at $\mu_F$ matters because it is not zero for every
+link: it is $-\gamma$ for the Gumbel-min law behind an ordinal cloglog fit.
 
 # How imputation-model error propagates
 
@@ -1032,8 +1036,8 @@ fixed-$B$ asymptotic distribution of the pooled estimate; and the resulting
 account of Rubin's variance.
 
 The labels distinguish the status of each result. Direct differentiation,
-conditioning, or inequalities establish the propositions. Conjectures A1 and
-A2 are labeled as such because we give heuristic derivations and numerical
+conditioning, or inequalities establish the propositions. Conjectures A1 to
+A3 are labeled as such because we give heuristic derivations and numerical
 support rather than proofs. Implications M1 and M2 are conditional
 calculations: they follow from high-level learner conditions, and what
 remains conjectural is whether the implemented adaptive learners satisfy
