@@ -38,8 +38,10 @@ Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal, spline clm, gam nuisances (parallel)
 Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
 Rscript R/stage6_link_misspec.R        # cloglog truth vs logit analyst, plus diagnostics
+Rscript R/stage7_dgp_variation.R       # continuous D, dimension, overlap, interaction arms
 Rscript R/wine_application.R           # application: volatile acidity on ordinal wine quality
 Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-variable bound
+Rscript R/wine_imputation_sensitivity.R # pass-through cbar1 and treatment-direction bound
 
 # Theory checks behind the paper's asymptotic-theory appendix
 Rscript R/theory_ordinal_passthrough.R # pass-through derivatives, J=2,3,4, three links
@@ -130,7 +132,7 @@ repository root.
   proof reference, not the practical default. Theorems S1 and S2 prove its
   projected expansion and bootstrap stability under explicit series
   conditions; the corresponding adaptive-learner results remain
-  Conjectures M1 and M2. A "principled" cross-validation tuning procedure
+  Implications M1 and M2. A "principled" cross-validation tuning procedure
   can be actively harmful if it optimizes the wrong objective (mboost's
   `cvrisk` minimizes deviance, not D-coefficient bias, and is the worst arm):
   any tuning search must select on theta-level MC performance directly.
@@ -148,7 +150,7 @@ repository root.
 - **A black-box imputation model can give valid inference.** Two pieces: a
   validated PL learner fixes the bias; the full-pipeline bootstrap
   (`sudo_pipeline_boot`, stage 3p) fixes the SE. The normal bootstrap-SD
-  interval is supported under Conjecture M2's high-level conditions; raw
+  interval is supported under Implication M2's high-level conditions; raw
   percentile and conventional studentized intervals are empirical only at
   fixed B. Stage 3s checks GAM, MARS, and tuned PL-backfit; the series
   reference has its own theorem-validation stage.

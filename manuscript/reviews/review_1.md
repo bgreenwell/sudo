@@ -1,437 +1,222 @@
-# Review of SUDO manuscript, open problems, and external assessment
+# Review of the SUDO manuscript and research agenda
+
+> **Status: resolved (2026-07-30).**
+>
+> All eight major findings have been addressed in the manuscript. This review
+> is retained as a historical record. See
+> [open_problems.md](../open_problems.md) for the live research agenda.
 
 ## Scope
 
-This review covers the full paper and appendices in
-`manuscript/paper/sudo_paper.qmd`, the research agenda in
+This review covers the paper and appendices in
+`manuscript/paper/sudo_paper.qmd`, the active agenda in
 `manuscript/open_problems.md`, the committed simulation summaries, and the
-first external assessment previously stored in this file. It checks the
-external assessment against the manuscript, repository evidence, and primary
-or authoritative sources.
+earlier external assessment that initiated several of the theory checks. It
+evaluates the manuscript against the repository evidence and the primary
+sources cited in the paper.
 
 ## Overall assessment
 
 SUDO has a credible methodological core, an original use of surrogate
-residuals as latent-outcome completions, and an unusually transparent account
-of its limitations. The pass-through analysis is insightful, the numerical
-verification is stronger than is typical for a paper at this stage, and the
-R-first validation ladder makes the empirical claims auditable.
+residuals as latent-outcome completions, and an unusually auditable
+validation record. The pass-through analysis explains why the full
+imputation model matters at first order, the ordinal correction is isolated
+rather than patched empirically, and the fixed-imputation analysis states
+clearly where Rubin inference is and is not exact.
 
-The ordinal machine-learning variance anomaly identified in the first review
-has now been isolated and corrected: the outcome nuisance must be refit for
-each ordinal completion. The corrected estimator passes its Monte
-Carlo-aware bias, coverage, and variance-calibration criteria and is now the
-R and Python default. The paper also states the conditional latent-error law
-explicitly, distinguishes SUDO from existing logistic DML, and qualifies the
-black-box evidence by design.
+The paper now separates three levels of evidence:
 
-The principal unresolved issue is now learner-specific inference for the
-three adaptive imputation algorithms. The paper closes the proof route for
-one tractable case: Theorem S1 derives the projected influence expansion for
-a deterministic logistic-series learner, and Theorem S2 establishes its
-full-pipeline bootstrap stability under explicit series and conditional
-bootstrap conditions. The corresponding conditions are not yet verified
-separately for GAM, MARS, or neural backfitting. The fixed-imputation
-reference distribution and covariate-direction leakage bound are also
-derived and numerically validated.
+1. Propositions A1 to A4 derive the pass-through map, moment properties, and
+   misspecification bounds directly.
+2. Theorems S1 and S2 prove the projected expansion and full-pipeline
+   bootstrap result for a deterministic logistic-series reference learner.
+3. Implications M1 and M2 state the corresponding adaptive-learner result.
+   GAM, MARS, and neural backfitting satisfy the numerical criteria in the
+   designs studied, but their projected asymptotic linearity and bootstrap
+   stability remain unproved.
 
-The previous external assessment was useful mainly as an agenda check. It
-correctly identified several open areas already recorded in
-`manuscript/open_problems.md`, but it was not reliable enough to serve as a
-technical review. It used broken mathematical image references, relied on
-weak or unrelated sources, and often converted conjectures into conclusions.
-Its useful suggestions are incorporated below only where they survive
-independent review.
+That boundary is the manuscript's principal theoretical limitation. It is
+specific and does not invalidate the parametric results or the proved series
+specialization.
 
 ## Major findings
 
-### 1. Conditional-law identification assumptions are repaired
+### 1. The novelty claim must be estimand-specific
 
-The surrogate identity requires the latent-error distribution conditional on
-the observed design to agree with the assumed link law. The displayed model
-previously said
+Ordinary DML methods can estimate probability- and distribution-scale
+effects for binary or ordinal outcomes. The gap addressed by SUDO is
+narrower and more precise: a partially linear latent-utility coefficient for
+binary and ordinal outcomes, with link-flexible surrogate completion.
 
-```text
-epsilon ~ F
-```
+The manuscript should therefore not say that categorical outcomes have no
+DML methods generally. Its defensible claim is that the logistic partially
+linear estimator of Liu, Zhang, and Zhou targets the same binary latent-logit
+coefficient under the logit specification, while SUDO adds other links and
+an ordinal latent-scale counterpart. The paper makes no estimator-equivalence
+or common-efficiency claim.
 
-while selection on observables is expressed through conditional mean
-independence. That combination does not by itself state the full condition
-needed for the completion argument. The required assumption is closer to
+### 2. The identification assumptions are explicit
 
-```text
-epsilon | D, X ~ F
-```
+The completion identity requires the conditional latent-error law, not only
+a marginal statement about the error distribution. The setup now states
+$$
+\varepsilon\mid D,X\sim F
+$$
+with the appropriate scale and threshold normalizations. It separates
+latent ignorability, the conditional location-family model, overlap, and the
+constant latent-scale effect.
 
-with the appropriate location, scale, and threshold normalization.
-
-The formal setup and Assumption A1 now state the conditional law and
-separate:
-
-1. latent ignorability or causal mean independence;
-2. the conditional location-family model for the latent error;
-3. overlap;
-4. a constant latent-scale treatment effect;
-5. threshold and scale normalization.
-
-This completed clarification is foundational. The identity
-`E[S | D, X] = E[U | D, X]`, the link diagnostic, and the truncation
+This condition is foundational. The identity
+$E[S\mid D,X]=E[U\mid D,X]$, the link diagnostic, and the pass-through
 derivatives all depend on it.
 
-### 2. The logistic-DML comparison is repaired
+### 3. The adaptive bootstrap claim is numerical, not yet general
 
-The manuscript no longer says that SUDO subsumes the logistic partially
-linear estimator of Liu, Zhang, and Zhou. It now says that the methods target
-the same latent-logit coefficient under the logit specification and presents
-SUDO as a link-flexible alternative. No estimator equivalence or common
-efficiency claim is made.
+The full-pipeline bootstrap captures uncertainty that a within-fold refit or
+an improper fixed-index procedure misses. Across GAM, MARS, and neural
+backfitting, the fixed/redrawn mean-SE ratio is 0.97 to 1.08. The within-fold
+SE is 0.90 to 0.93 of the full-pipeline SE at moderate signal and 0.75 to
+0.77 at strong signal. Normal coverage is 0.93 to 0.97 in the paired
+bootstrap study.
 
-### 3. The black-box inference claim is now correctly delimited
+Implication M2 supports a normal interval based on the full-pipeline bootstrap
+standard deviation if its high-level conditions hold. It does not justify a
+conventional percentile or studentized interval at fixed imputation count,
+because fresh surrogate randomness leaves an order-$n^{-1/2}$ centering gap.
+Those intervals remain empirical comparisons.
 
-The paper states that partially linear machine-learning imputation models
-and a full-pipeline bootstrap attain nominal coverage in the designs studied.
-The repository supports that statement for GAM, MARS, and neural
-backfitting. A deterministic Hermite-series implementation serves a
-different role: it is the proof reference, not the recommended adaptive
-learner. Conjecture M2 adds a learner-class statement, but its projected
-bootstrap-stability condition remains a learner-specific proof obligation
-for the adaptive algorithms, so it does not support an unconditional general
-validity claim for them.
-
-The abstract and contributions should use design-specific language, such as:
-
-> In the black-box designs studied, a tuned partially linear imputation model
-> paired with a full-pipeline bootstrap attained nominal coverage.
-
-The discussion already contains much of the necessary qualification.
-
-### 4. The machine-learning theory now has one proved specialization
-
-Conjecture M1 treats the cross-fitted flexible imputation index
-`v(D, X) = alpha D + f(X)` directly and retains the parametric formulas as a
-special-case corollary. It isolates the first-order residual-weighted
-projection of the fitted-index error and the fixed-imputation completion
-noise. Conjecture M2 supplies the corresponding bootstrap statement under
-conditional stability.
-
-Theorems S1 and S2 discharge the projected expansion and bootstrap-stability
-obligations for a deterministic logistic series whose dictionary contains
-functions of `X` only and a separate mandatory linear treatment term.
-`R/theory_pl_series.R` independently checks the population projection,
-influence expansion, and fixed/redrawn-fold Efron bootstrap. At `n = 4000`,
-the empirical-to-influence SD ratios are 0.989 and 0.985 at the two signal
-levels. The normalized expansion remainders fall from 0.439 to 0.198 and
-from 0.623 to 0.289 between `n = 1000` and `n = 4000`. Bootstrap SD ratios
-are 1.014 to 1.077. The fixed degree-three population target shifts are
--0.00082 and -0.00167, which are measured approximation errors rather than a
-proof of target undersmoothing.
-
-Newey's series-estimation paper supplies the relevant primary conditions for
-rates and asymptotic normality of nonlinear series functionals
-([Journal of Econometrics 79, 147-168](https://doi.org/10.1016/S0304-4076(97)00011-0)).
-Härdle, Huet, Mammen, and Sperlich give a related bootstrap result for
-semiparametric generalized additive models
-([Econometric Theory 20, 265-300](https://doi.org/10.1017/S026646660420202X)).
-Neither source proves the SUDO generated-outcome result directly, so the
-paper uses them as context and supplies its own specialization.
-
-The remaining gaps are specific to the adaptive learners:
-
-- prove the projected asymptotic-linearity condition for GAM, MARS, and
-  neural backfitting;
-- prove its conditional bootstrap analogue for those learners;
-- verify the stated uniform remainder and conditional nuisance-rate
-  conditions rather than assuming them at learner-class level.
-
-Tang and Westling provide general bootstrap conditions for asymptotically
-linear estimators with machine-learned nuisances
+Theorem S2 proves the required bootstrap stability for the deterministic
+series reference. The remaining obligation is to verify the projected
+condition, uniform remainder, and conditional nuisance rates separately for
+the three adaptive algorithms. Tang and Westling provide general conditions
+for bootstrapping asymptotically linear estimators with machine-learned
+nuisances
 ([arXiv:2404.03064](https://arxiv.org/abs/2404.03064)). Lin and Han establish
-exchangeably weighted bootstrap validity for general DML estimators under the
-conditions needed for DML itself
-([arXiv:2604.17239](https://arxiv.org/abs/2604.17239)). Neither source, based
-on its stated scope, discharges SUDO's projected learner condition or its
-randomized generated-outcome continuity condition.
+exchangeably weighted bootstrap validity for general DML estimators under
+the conditions needed for DML itself
+([arXiv:2604.17239](https://arxiv.org/abs/2604.17239)). Neither result
+automatically supplies SUDO's projected learner expansion or its
+generated-outcome continuity condition.
 
-Hahn and Ridder study the influence of first-step generated regressors in
-three-step semiparametric estimators
-([Econometrica 81, 315-340](https://doi.org/10.3982/ECTA9609)). Their
-path-derivative approach may help construct SUDO's influence-function
-expansion, but it is not itself a bootstrap theorem for SUDO.
+### 4. Partial linearity is a restriction, not a proof
 
-### 5. Ordinal over-coverage is resolved
+Constraining the imputation index to
+$$
+\hat v(D,X)=\hat\alpha D+\hat f(X)
+$$
+prevents treatment-by-covariate artifacts. It does not guarantee that
+$\hat f$ consistently estimates the covariate component, that
+$\hat\alpha$ has the required projected expansion, or that the bootstrap
+version is stable.
 
-The original implementation confirmed substantial conservatism:
+The common comparison nevertheless gives useful design-specific evidence.
+GAM, MARS, and neural backfitting all pass the original Monte-Carlo-aware
+bias and coverage criteria. MARS is correctly implemented by constructing
+bases from $X$ only and then estimating a mandatory linear treatment term in
+a joint logistic fit. `earth::linpreds` alone would still permit treatment
+interactions.
 
-- stage 4 reports coverage of 0.976;
-- stage 5 at `n = 2000` reports SD 0.110, mean SE 0.149, and coverage 0.985;
-- the internal Rubin checks report variance ratios of roughly 1.50 to 1.88.
+The deterministic Hermite series serves a different purpose. It is a proof
+reference, not the recommended adaptive learner. Theorem S1 derives its
+projected influence expansion, and Theorem S2 establishes bootstrap
+stability under explicit series and conditional bootstrap conditions.
 
-The ordinal term-level decomposition then ruled out threshold estimation and
-pooling alone. The paired nuisance ladder isolated reuse of one plug-in
-estimate of `E[S | X]` across completions: per-draw refitting left empirical
-variance nearly unchanged while reducing `T/V` from 1.505 to 0.942. The full
-corrected stage at `n = 2000`, `B = 25`, and 200 replications reports bias
-0.016, coverage 0.960, and `T/V = 1.214` with Monte Carlo SE 0.122. It passes
-all prespecified checks.
+### 5. The ordinal variance anomaly is resolved
 
-The remaining sample-size and imputation-count grid belongs with the
-fixed-imputation investigation. It does not block the corrected default.
+The original ordinal implementation substantially over-covered. A
+term-level decomposition including threshold uncertainty showed that
+threshold estimation and Rubin pooling alone could not explain the variance
+gap. The paired nuisance ladder then isolated reuse of one plug-in estimate
+of $E[S\mid X]$ across completions.
 
-### 6. Fixed-imputation inference now has a reference law
+Refitting the outcome nuisance on every ordinal completion leaves empirical
+point-estimator variance nearly unchanged but reduces the within-draw
+component. In the paired ladder, $T/V$ falls from 1.505 to 0.942. The full
+corrected stage at $n=2000$, $B=25$, and 200 replications reports bias 0.016,
+coverage 0.960, and $T/V=1.214$ with Monte Carlo standard error 0.122. It
+passes the prespecified checks and is now the R and Python default.
 
-The result that the scaled between-imputation variance retains a chi-square
-fluctuation when the number of imputations is fixed is important. It implies
-that increasing sample size alone does not make the reported variance
-deterministic.
+The paper should describe the old implementation as the experiment that
+exposed the problem, not as a remaining anomaly.
 
-The joint limit now writes the estimator numerator as a normal variable
-independent of Rubin's shifted-chi-square denominator. The exact reference
-is therefore a normal-over-shifted-chi-square mixture, not generally a
-Student distribution. A variance-calibrated Satterthwaite approximation
-follows by matching the denominator's first two moments. Barnard-Rubin is
-not exact for this law, but is close in the validated testbed.
+### 6. Fixed-imputation inference has a reference law
+
+When $B$ is fixed, the scaled between-imputation variance retains a
+chi-square fluctuation as $n$ grows. The limiting statistic is a normal
+variable divided by the square root of a constant plus a scaled chi-square
+variable, not generally a Student distribution.
 
 At strong signal, predicted normal coverage is 0.888, 0.921, and 0.938 for
-5, 10, and 25 imputations. Barnard-Rubin raises it to 0.942, 0.947, and
-0.948; the calibrated Satterthwaite approximation stays within 0.006 of
-0.95. Across both signals and all five imputation counts, predicted and
-finite-sample coverage differ by at most 0.012. Barnard-Rubin with at least
-25 imputations remains the practical default because the exact and
-Satterthwaite references require additional component estimates.
+$B=5,10,25$. Barnard-Rubin gives 0.942, 0.947, and 0.948, while the
+variance-calibrated Satterthwaite approximation remains within 0.006 of
+0.95. Prediction and finite-sample coverage differ by at most 0.012 across
+the validation grid. Barnard-Rubin with at least 25 imputations remains the
+practical parametric default because it needs no additional component
+estimators.
 
-Taking the number of imputations to infinity removes Monte Carlo uncertainty
-in estimating the between-imputation component. It does not mean that every
-variance contribution associated with imputation disappears.
+Increasing $B$ removes Monte Carlo uncertainty in the between-imputation
+sample variance. It does not imply that every imputation-related variance
+component disappears.
 
-### 7. The application caveat is repaired
+### 7. Rubin exactness remains a narrow open question
 
-The wine application clearly labels its causal interpretation as dependent
-on a debatable graph and strong adjustment assumptions. The leave-one-out
-analysis and two types of sensitivity calculations are useful.
+Conjecture A2 shows that Rubin's variance is asymptotically exact precisely
+when
+$$
+G'C=\sigma_u^2.
+$$
+The identity fails in both directions in the congenial testbed, producing
+about 1% to 2% variance discrepancies. The open question is whether a useful
+subclass forces the identity or bounds its failure. There is no general
+one-sided conservatism result here.
 
-The manuscript now reports the treatment-direction sensitivity multiplier
-and conditions its interpretation explicitly on negligible
-covariate-direction misspecification. Proposition A4 supplies the missing
-exact covariate-leak identity and weighted norm bound, so readers can assess
-a specified covariate perturbation separately. No general robustness claim
-is made from the treatment-direction calculation alone.
+This discrepancy is theoretically important but practically smaller than
+the fixed-$B$ chi-square variation at ordinary imputation counts.
 
-## Assessment of the previous external review
+### 8. The wine comparator needs neutral interpretation
 
-### Points worth retaining
+The cumulative-link coefficient is not a naive estimate that simply ignores
+completion uncertainty. It is a model-based estimator that can be efficient
+when the full parametric outcome model is correct. Its narrower standard
+error reflects stronger functional-form assumptions.
 
-The previous review correctly emphasized:
+SUDO uses that model to construct completions but leaves the partialling
+regressions flexible and propagates completion and cross-fitting variation.
+The application should present the cumulative-link coefficient as a
+stronger-model comparator rather than evidence of under-propagated
+uncertainty.
 
-- full-pipeline bootstrap validity as an open proof problem;
+The causal interpretation remains conditional on a debatable graph and
+strong adjustment assumptions. The treatment-direction sensitivity
+calculation is also conditional on negligible covariate-direction
+misspecification. Proposition A4 supplies the exact covariate-leak identity
+and weighted bound for a specified perturbation; it does not establish
+general robustness.
+
+## Assessment of the earlier external review
+
+The earlier assessment was useful as an agenda check but not reliable as a
+technical review. Its strongest suggestions were independently investigated:
+
+- full-pipeline bootstrap validity;
 - the generated-outcome step as distinct from ordinary DML;
 - an ordinal term-level variance decomposition;
 - threshold contributions to the derivative;
-- uncertainty about fixed-imputation reference distributions;
-- the absence of theory for cross-fitted flexible imputation models;
-- MARS as a possible partially linear learner.
+- fixed-imputation reference distributions;
+- theory for cross-fitted flexible imputation models;
+- MARS as a partially-linear learner.
 
-Most of these points were already present in `manuscript/open_problems.md`,
-but they remain valid priorities.
+Several claims should not be retained:
 
-### Points to reject or restate
-
-1. **Six bootstrap conditions as an established theorem.** The listed conditions are a
-   plausible checklist, not established sufficient conditions for SUDO.
-
-2. **Mandatory redrawing of folds.** Redrawing folds within each bootstrap
-   resample may be a sound implementation choice. Its necessity has not been
-   proved. Fixed and redrawn folds should be compared directly.
-
-3. **Threshold derivatives as the ordinal solution.** The implementation
-   already draws thresholds jointly, and Proposition A1 already includes the
-   threshold derivative block. The open question is whether the resulting
-   terms explain the variance gap.
-
-4. **Mandatory Firth or ridge estimation.** Near-separation deserves a
-   regularity analysis, but the review did not establish that bias reduction
-   or ridge must always be used. Bias-reduced cumulative-link estimation is
-   relevant background
-   ([Kosmidis, arXiv:1204.0105](https://arxiv.org/abs/1204.0105)), not proof
-   of necessity for SUDO.
-
-5. **Between-imputation variance vanishes as the number of imputations
-   grows.** What vanishes is Monte Carlo error from estimating the component,
-   not necessarily the component itself.
-
-6. **XGBoost fails because trees are nonsmooth.** This mechanism was asserted
-   without evidence. The repository's tuning-quality hypothesis is more
-   defensible and directly testable.
-
-7. **MARS support.** The cited continuous-treatment DML material did not
-   validate the proposed `earth::linpreds` implementation, and inspection
-   showed that `linpreds` alone still permits treatment interactions. The
-   validated implementation instead builds bases from `X` only and estimates
-   a mandatory linear treatment coefficient in a joint logistic fit.
-
-8. **Source quality.** ResearchGate pages, Medium posts, software
-   documentation, unrelated applications, and a CRAN task view are not
-   adequate support for the review's theoretical claims. The broken
-   `![][imageN]` expressions also made its mathematics unauditable.
-
-## Prioritized plan
-
-### Phase 1: Reconcile the completed ordinal correction
-
-Status: the first isolation step is complete. The new
-`R/theory_ordinal_variance_terms.R` stage includes the threshold block and
-passes its Monte Carlo acceptance checks. It predicts `T/V = 1.028` at
-moderate signal and `0.980` at strong signal, ruling out ordinal threshold
-estimation and Rubin pooling alone as explanations for the stage-5 ratio of
-1.50 to 1.88.
-
-The paired nuisance ladder is also complete at 100 replications and `B = 10`.
-It identifies reuse of a fixed plug-in outcome nuisance as the mechanism:
-per-draw refitting changes empirical variance from 0.01380 to 0.01375 but
-reduces mean Rubin variance from 0.02077 to 0.01295. The corresponding `T/V`
-falls from 1.505 to 0.942.
-
-The full corrected stage is now complete at `n = 2000`, `B = 25`, and 200
-replications. It reports bias 0.016, coverage 0.960, and `T/V = 1.214` with
-Monte Carlo SE 0.122. It passes its bias, coverage, and variance-calibration
-criteria, so per-draw outcome-nuisance refitting is now the validated ordinal
-default.
-
-Remaining work is to remove stale descriptions of the anomaly and to fold the
-additional sample-size and imputation-count grid into fixed-imputation work.
-
-### Phase 2: Compare structurally partially linear learners
-
-Status: complete. `R/stage3s_pl_learners.R` compares GAM, MARS, and the tuned
-PL-backfit on common data-generating seeds. MARS is tuned on theta-level
-Monte Carlo bias and mechanically excludes treatment from its adaptive
-basis. All three pass the bias and percentile-coverage criteria. At
-$\theta_0=3$, their biases are 0.043, -0.010, and 0.007, respectively, and
-their SD/mean-SE ratios are 0.960, 0.945, and 0.998. The comparison therefore
-supports the partially-linear learner class rather than a unique backfitting
-implementation.
-
-Treat `v(D, X) = alpha D + f(X)` as the structural requirement, not
-PL-backfit as the method. Compare:
-
-- the existing logistic GAM with an unpenalized linear treatment term;
-- MARS with treatment forced linear and basis selection restricted to `X`;
-- the tuned PL-backfit already used by the full-pipeline bootstrap.
-
-Use common samples, folds, seeds, and inference settings. Tune MARS on
-theta-level Monte Carlo performance and promote it only if it passes the same
-bias and coverage criteria as the existing default.
-
-### Phase 3: Develop a learner-class asymptotic expansion
-
-Status: complete for the deterministic-series reference and narrowed for the
-adaptive learners. Conjecture M1 requires an asymptotically linear
-residual-weighted projection of the fold-specific imputation error and yields
-`Var(e R + rho(W)) + sigma_u^2/B`, scaled by `J_theta^-2`. Theorem S1 derives
-that projection from the logistic score for the deterministic series rather
-than assuming it. `R/theory_ml_expansion.R` separately verifies the
-generated-outcome Taylor step across the implemented learners. The remaining
-theoretical task is algorithm-specific projected asymptotic linearity for
-GAM, MARS, and neural backfitting.
-
-Define the imputation estimator by fold-specific functions
-`v_hat[-k](D, X) = alpha_hat[-k] D + f_hat[-k](X)`, without requiring a
-finite-dimensional parameterization.
-
-Required deliverables:
-
-- a precise estimator definition including auxiliary randomness;
-- an influence-function expansion for fixed imputation count;
-- a projected expansion for
-  `E[R {psi(v_hat) - psi(v0)}]`;
-- a lemma controlling its interaction with cross-fitted adjustment
-  nuisances;
-- uniform remainder conditions;
-- a clear distinction between conditional-on-imputation and unconditional
-  laws;
-- the existing parametric formula as a special-case corollary.
-
-Acceptance criterion: met for the deterministic series. The same criterion
-remains unmet for the adaptive algorithms.
-
-### Phase 4: Prove or narrow full-pipeline bootstrap validity
-
-Status: proved for the deterministic-series reference and narrowed to a
-precise learner-class conjecture for the adaptive algorithms. Conjecture M2
-states conditional weak convergence around the bootstrap conditional mean
-and bootstrap-variance consistency under projected learner stability,
-conditional nuisance rates, integrated-map differentiability, randomized
-completion continuity, and regular folds. The raw inverse-transform map need
-not be differentiable for every fixed uniform. Fixed and redrawn folds are
-both admissible under the stated condition, so redrawing is a propagation
-choice rather than a necessity.
-
-The fixed-imputation centering distinction is material. Fresh surrogate
-randomness leaves an order-$n^{-1/2}$ difference between the realized
-randomized estimate and the bootstrap conditional mean. The conjecture
-therefore supports the normal interval based on the full-pipeline bootstrap
-SD, but not a conventional percentile or studentized interval without an
-additional argument or increasing imputation count. Theorem S2 verifies
-projected bootstrap stability for the deterministic series. The same
-verification remains open for GAM, MARS, and neural backfitting.
-
-The paired numerical check is complete for GAM, MARS, and neural backfitting
-at both effect sizes. Fixed/redrawn mean-SE ratios range from 0.97 to 1.08,
-with every paired bias difference inside its Monte Carlo tolerance. The
-within-fold SE is 0.90 to 0.93 of the full-pipeline SE at moderate signal and
-only 0.75 to 0.77 at strong signal. The improper SE is another 8% to 25%
-smaller. The within-fold procedure therefore sits between improper and full
-propagation rather than reproducing the improper variance exactly. Normal
-coverage is 0.93 to 0.97; conventional studentization ranges from 0.80 to
-0.93 and is not promoted.
-
-Completed deliverables are the centered conditional law, bootstrap-variance
-consistency, integrated-map argument, series proof, fixed/redrawn fold
-comparison, and direct full/within/improper variance comparison. The
-remaining deliverable is verification of (MB1), with its uniform remainder
-and conditional-rate requirements, for each adaptive learner.
-
-### Phase 5: Derive fixed-imputation inference
-
-Status: complete. The fixed-$B$ joint law establishes independence between
-the normal estimator numerator and shifted-chi-square denominator. The exact
-mixture, calibrated Satterthwaite, Barnard-Rubin, and normal references are
-compared at imputation counts 5, 10, 25, 50, and 100 under weak and strong
-signal. `R/theory_fixed_b_inference.R` passes every theory-versus-finite
-sample coverage check at $n=5000$ and 1,000 replications. The separate
-full-pipeline comparison reports percentile and studentized intervals for
-the machine-learning case and does not promote either over the normal
-bootstrap-SD interval.
-
-### Phase 6: Bound covariate-direction leakage
-
-Status: complete. Proposition A4 expresses the exact finite-perturbation
-leak through arm-specific path-averaged derivatives and gives both a global
-weighted Cauchy-Schwarz bound and a sharper local second-order bound.
-Overlap enters through `J_theta = E[m(X){1-m(X)}]`, with an explicit lower
-bound under uniform overlap.
-
-`R/theory_covariate_leakage.R` verifies both bounds across 12 interaction
-cells using two million population draws. The local bound is 2.82 to 7.79
-times the exact leak and the Taylor remainder scales as
-`0.0027` to `0.0091` times the squared perturbation. The stage-7 interaction
-arm is also decomposed into covariate leakage and induced
-treatment-coefficient error, correcting the earlier claim that it was a
-pure covariate-direction experiment.
-
-### Phase 7: Complete secondary methodological work
-
-After the inferential work:
-
-- retune XGBoost using target-level Monte Carlo performance;
-- measure the effective treatment-direction error directly across learners;
-- leave multinomial outcomes as a separate project.
-
-## Recommended execution order
-
-The deterministic-series theorem batch is complete. The remaining order is:
-
-1. verify the projected asymptotic-linearity and bootstrap-stability
-   conditions separately for GAM, MARS, and neural backfitting;
-2. retune or directly diagnose secondary learner classes only after that
-   proof attempt identifies what stability must be measured;
-3. treat multinomial outcomes as a separate project.
+1. Its bootstrap checklist was plausible, not an established theorem for
+   SUDO.
+2. Redrawing folds is not known to be necessary. Fixed and redrawn regular
+   folds are both admissible under Implication M2 and similar numerically.
+3. Threshold derivatives alone do not solve the ordinal variance problem.
+4. Firth or ridge estimation is not known to be mandatory.
+5. The between-imputation variance component does not necessarily vanish as
+   $B$ grows; its sample-variance noise does.
+6. Nonsmooth trees were not shown to cause XGBoost's failure.
+7. `earth::linpreds` does not by itself enforce the required MARS structure.
+8. Weak secondary sources and broken mathematical image references cannot
+   support theoretical conclusions.

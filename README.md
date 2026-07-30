@@ -17,8 +17,11 @@ two predictions without biasing the effect.
 
 That machinery assumes a continuous outcome. A categorical outcome obeys the
 additive structure only on a *latent* scale: there is an unobserved
-continuous utility, and you observe which interval it fell into. Existing
-tooling covers the binary-logistic case and nothing else.
+continuous utility, and you observe which interval it fell into. Existing DML
+scores can target probability- or distribution-scale contrasts for such
+outcomes, but the additive coefficient on the latent scale needs different
+machinery. Tooling exists for the binary-logistic case; we are aware of no
+existing DML estimator for the ordinal version.
 
 ## The idea
 
