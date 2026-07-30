@@ -118,29 +118,50 @@ stopifnot(abs(b("ordinal_cloglog_min")$bias) <
 cat("\nPASS: wrong link biased, right link unbiased (binary and ordinal)\n")
 
 cat("\n== C: sure residual diagnostic (independent draw stream) ==\n")
-# Under a correct link, surrogate residuals are homoscedastic (Cheng et al.
-# 2021); a wrong link makes their conditional VARIANCE drift with X. Mean-
-# structure tests are blind here — flexible thresholds absorb conditional-mean
-# misfit — so we test var drift: gam(r^2 ~ s(X)) smooth p-value, median over
-# 10 draws. Diagnosis uses its own RNG stream, never the estimation draws.
+# Under a correctly specified model the surrogate residual has constant
+# conditional mean and variance (Liu and Zhang 2018), so drift in the
+# conditional second moment is evidence against the fitted specification.
+# Mean-structure checks are weak here because flexible thresholds absorb
+# conditional-mean misfit, so we look at second-moment drift:
+# gam((r - mu_F)^2 ~ s(X)) smooth p-value, median over 10 draws.
+#
+# The residual must be centred at the REFERENCE MEAN of the assumed latent
+# error law before squaring, otherwise the statistic mixes a squared mean
+# offset into the second moment and the two links are not comparably
+# centred. Logistic and normal have mean 0; clm's cloglog is Gumbel-min with
+# mean -gamma (checked empirically: mean(r) = -0.595 under the correct fit).
+#
+# This is a diagnostic, not a calibrated test. The reported values aggregate
+# over surrogate draws and are not calibrated for parameter estimation, and a
+# rejection is not specific to the link: scale heterogeneity, omitted mean
+# structure, or non-proportionality would also produce drift.
+# Diagnosis uses its own RNG stream, never the estimation draws.
+EULER <- -digamma(1)
+ref_mean <- function(link) {
+  switch(link, logit = 0, probit = 0, cloglog = -EULER,
+         stop("no reference mean recorded for link: ", link))
+}
 set.seed(987654)
 d <- dgp_ord()
 dat <- data.frame(Y = factor(d$Y), D = d$D, X = d$X)
 fit_wrong <- clm(Y ~ D + X, link = "logit", data = dat)
 fit_right <- clm(Y ~ D + X, link = "cloglog", data = dat)
-var_drift_p <- function(fit) {
+var_drift_p <- function(fit, link) {
+  mu <- ref_mean(link)
   median(replicate(10, {
     r <- as.numeric(resids(fit))
-    summary(mgcv::gam(I(r^2) ~ s(dat$X)))$s.pv
+    summary(mgcv::gam(I((r - mu)^2) ~ s(dat$X)))$s.pv
   }))
 }
-p_wrong <- var_drift_p(fit_wrong)
-p_right <- var_drift_p(fit_right)
-cat(sprintf("var-drift p (logit fit, wrong):    %.2e  <- flags misspec\n",
+p_wrong <- var_drift_p(fit_wrong, "logit")
+p_right <- var_drift_p(fit_right, "cloglog")
+cat(sprintf("2nd-moment drift, nominal p (logit fit, misspecified):   %.2e\n",
             p_wrong))
-cat(sprintf("var-drift p (cloglog fit, right):  %.3f\n", p_right))
+cat(sprintf("2nd-moment drift, nominal p (cloglog fit, correct):     %.3f\n",
+            p_right))
 stopifnot(p_wrong < 0.05, p_right > 0.05)
-cat("PASS: diagnostic flags the wrong link and clears the right one\n")
+cat("PASS: rejects the misspecified fit, does not reject the correct one",
+    "(one dataset, nominal p-values, not a calibrated test)\n")
 
 sm <- rbind(sm, data.frame(stage = 6, estimator = c("vardrift_wrong", "vardrift_right"),
                            n_reps = 10, mean_est = c(p_wrong, p_right),
