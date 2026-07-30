@@ -1,6 +1,6 @@
 # Sensitivity analysis for the wine application.
 #
-# Two robustness checks the paper promises but did not yet deliver:
+# Two robustness checks reported in the paper:
 #   1. Adjustment-set robustness. Rerun ordinal SUDO with the full covariate
 #      set and with every leave-one-covariate-out set. If the effect stays
 #      clearly negative across all of them, it does not hinge on any single
@@ -40,13 +40,13 @@ sudo_wine <- function(y, D, X, B = 50, n_folds = 5, seed = 1) {
   b_idx <- seq(J, length(par_hat))
   cuts <- function(par) c(-Inf, par[1:(J - 1)], Inf)
 
-  S_hat <- crossfit(X, complete_surrogate(
-    y, as.numeric(mm %*% par_hat[b_idx]), cuts(par_hat), "logit"),
-    fit_gam, folds)
+  # Outcome nuisance refit per completion, matching the validated ordinal
+  # default; a single plug-in E[S|X] inflates Rubin's within-draw term.
   draws <- sapply(seq_len(B), function(b) {
     par <- MASS::mvrnorm(1, par_hat, V)
     S <- complete_surrogate(y, as.numeric(mm %*% par[b_idx]), cuts(par), "logit")
-    f <- fwl_theta(S - S_hat, D_res)
+    S_hat_b <- crossfit(X, S, fit_gam, folds)
+    f <- fwl_theta(S - S_hat_b, D_res)
     c(theta = f$theta, var = f$var)
   })
   p <- pool_rubin(draws["theta", ], draws["var", ], n_obs = n)

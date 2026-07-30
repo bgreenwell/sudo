@@ -1,17 +1,20 @@
 # Application: the effect of volatile acidity on wine quality.
 #
-# Wine quality is an ORDINAL sensory score (the median of blind tasters,
-# 3-8 for red, 3-9 for white) -- exactly the outcome type no existing DML
-# estimator handles, which is why this showcases SUDO rather than competing
-# with anything.
+# Wine quality is an ordinal sensory score (the median of blind tasters,
+# 3-8 for red, 3-9 for white). This application illustrates SUDO's
+# latent-utility coefficient for an ordinal outcome. We are aware of no
+# existing DML estimator for that estimand, although other methods target
+# probability- or distribution-scale contrasts and related ordered-response
+# parameters.
 #
 # Causal question, under an assumed DAG (stated as an assumption -- this is
 # observational data, not an experiment): the effect of volatile acidity
 # (VA, the acetic-acid "vinegar/nail-polish" fault) on latent quality,
-# holding the other physicochemical covariates fixed. VA has an
-# uncontroversial causal direction (tasters penalise it by definition) and
-# is a fault endpoint rather than upstream of the other chemistry, so
-# adjusting for the rest does not block its causal path.
+# holding the other physicochemical covariates fixed. VA is treated as a
+# plausible treatment because it is a fault measure tasters are expected to
+# penalize. Causal interpretation nevertheless depends on the stated DAG,
+# including the assumption that the remaining chemistry variables are valid
+# pre-treatment adjustments rather than mediators or proxies.
 #
 #   Y = quality (ordinal)              -> surrogate-completed
 #   D = volatile acidity (continuous)  -> treatment
@@ -68,20 +71,21 @@ analyse <- function(which, B = 50, n_folds = 5, seed = 1) {
     b_idx <- seq(J, length(par_hat))
     cuts <- function(par) c(-Inf, par[1:(J - 1)], Inf)
 
-    S_hat <- crossfit(X, complete_surrogate(
-      y, as.numeric(mm %*% par_hat[b_idx]), cuts(par_hat), "logit"),
-      fit_gam, folds)
+    # The outcome nuisance is refit on every completion: reusing one plug-in
+    # E[S|X] across draws inflates Rubin's within-draw term (stage 5r).
     draws <- sapply(seq_len(B), function(b) {
       par <- MASS::mvrnorm(1, par_hat, V)
       S <- complete_surrogate(y, as.numeric(mm %*% par[b_idx]), cuts(par),
                               "logit")
-      f <- fwl_theta(S - S_hat, D_res)
+      S_hat_b <- crossfit(X, S, fit_gam, folds)
+      f <- fwl_theta(S - S_hat_b, D_res)
       c(theta = f$theta, var = f$var)
     })
     p <- pool_rubin(draws["theta", ], draws["var", ], n_obs = n)
     co <- summary(fit)$coefficients["D", ]
     list(naive_theta = unname(co["Estimate"]), naive_se = unname(co["Std. Error"]),
-         theta = p$theta, se = p$se, ci_lo = p$ci_lo, ci_hi = p$ci_hi)
+         theta = p$theta, se = p$se, ci_lo = p$ci_lo, ci_hi = p$ci_hi,
+         W = p$W, B_between = p$B_between, df = p$df)
   }
 
   list(which = which, n = n, J = max(y), r2_overlap = r2_overlap,
@@ -111,7 +115,9 @@ for (which in c("red", "white")) {
     rows[[length(rows) + 1]] <- data.frame(
       wine = r$which, n = r$n, n_levels = r$J, overlap_r2 = r$r2_overlap,
       full_model = spec, naive_theta = s$naive_theta, naive_se = s$naive_se,
-      sudo_theta = s$theta, sudo_se = s$se, ci_lo = s$ci_lo, ci_hi = s$ci_hi)
+      sudo_theta = s$theta, sudo_se = s$se, ci_lo = s$ci_lo, ci_hi = s$ci_hi,
+      W = s$W, B_between = s$B_between, T_total = s$W + (1 + 1 / 50) * s$B_between,
+      df = s$df)
   }
 }
 sm <- do.call(rbind, rows)
