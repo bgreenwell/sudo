@@ -30,4 +30,4 @@ cd manuscript/paper && quarto render sudo_paper.qmd --to arxiv-pdf
 ## Feedback on the paper
 
 For comments on the manuscript or method, open an issue using the feedback
-template, or email greenwell.brandon@gmail.com.
+template.

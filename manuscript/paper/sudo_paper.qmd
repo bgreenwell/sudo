@@ -84,8 +84,9 @@ application fails.
    effect, revealing a *first-order* sensitivity absent from standard DML,
    confirmed by a direct perturbation experiment.
 4. A route to nominal coverage with machine-learning imputation models, via
-   a partially-linear structure, three validated learners, and a
-   full-pipeline bootstrap.
+   a partially-linear structure, three validated adaptive learners, a
+   proved deterministic-series reference learner, and a full-pipeline
+   bootstrap.
 5. An application to wine quality, an ordinal latent-scale estimand for
    which we are aware of no existing DML estimator.
 
@@ -449,9 +450,14 @@ The bias is addressed by a *partially-linear* (PL) imputation model,
 $\hat V = \hat\alpha D + \hat f(X)$, in which the treatment enters linearly
 and machine learning handles only $X$, so no treatment-by-covariate
 artifact can arise. This is a structural learner class, not a commitment to
-one training algorithm. We implement it with a GAM, MARS bases followed by a
-joint logistic fit, and neural-network backfitting. All three are unbiased
-across effect sizes in the common comparison in @sec-sims. The inference problem is
+one training algorithm. We implement it with a generalized additive model
+(GAM), multivariate adaptive regression spline (MARS) bases followed by a
+joint logistic fit, and neural-network backfitting. All three adaptive
+learners are unbiased across effect sizes in the common comparison in
+@sec-sims. We also implement a deterministic Hermite-series learner as a
+proof reference. Theorem S1 proves its projected first-order expansion and
+Theorem S2 proves bootstrap stability under explicit series conditions; it
+is not the practical default. The inference problem is
 addressed by a *full-pipeline bootstrap*, the nonparametric counterpart of
 the proper draw: where a parametric model injects imputation-model
 uncertainty by sampling $\beta$ from its covariance, here we resample the
@@ -472,10 +478,12 @@ inverse-transform draw. It also exposes a fixed-imputation centering point:
 fresh surrogate randomness makes the bootstrap variance consistent, but the
 usual distribution centered at the one realized randomized estimate is not
 covered. The normal interval based on the full-pipeline bootstrap standard
-deviation is the procedure supported under those conditions. The remaining gap is
-learner-specific verification of the projected stability condition for GAM,
-MARS, and neural backfitting. The numerical comparison below supports but
-does not prove it.
+deviation is the procedure supported under those conditions. The remaining
+gap is learner-specific verification of the projected stability condition
+for the three adaptive algorithms. The deterministic series result shows
+that the proof route closes for one tractable partially-linear learner; the
+numerical adaptive-learner comparison below supports but does not prove the
+same conclusion for GAM, MARS, or neural backfitting.
 
 A Bayesian ensemble is the obvious alternative, since each posterior draw is
 a complete alternative imputation model and so is a proper draw by
@@ -636,8 +644,8 @@ $\alpha D + f(X)$ structure three ways: a GAM with a linear treatment term,
 MARS bases constructed from $X$ only followed by a joint logistic fit with
 mandatory linear $D$, and the tuned neural-network backfit. The MARS
 configuration is selected on theta-level Monte Carlo bias, not predictive
-generalized cross-validation (GCV). All three pass the prespecified bias and
-percentile-coverage criteria
+generalized cross-validation (GCV). The three adaptive learners pass the
+prespecified bias and percentile-coverage criteria
 (@tbl-pl-learners). With 50 replications, these coverage cells have Monte
 Carlo standard errors of roughly 0.02 to 0.05, so their small differences do
 not rank the learners.
@@ -699,8 +707,9 @@ transfer directly. Replacing binary $D$ with $D = 0.7\pi(X) + N(0,1)$ in the
 S5 structure leaves the estimator unbiased for both a binary outcome
 ($-0.1\%$ at $\theta_0 = 1$, $+0.4\%$ at $2.5$) and a three-category ordinal
 one ($+0.7\%$ and $+1.5\%$), so the latent-scale estimand and the machinery
-carry over. Doubling the covariate count to ten, and scaling the propensity
-so that overlap is markedly worse, likewise cost nothing in bias. The
+carry over. Doubling the covariate count to ten, and scaling the
+treatment-assignment index so that overlap is markedly worse, likewise cost
+nothing in bias. The
 variation that does matter is the one described above, an imputation model
 unable to represent $g_0$. Coverage under a continuous treatment tracks the
 binary case at moderate signal but is worse at strong signal, where the
@@ -852,15 +861,17 @@ machine-learning imputation model, paired with a full-pipeline bootstrap,
 attains nominal coverage throughout our experiments.
 
 Several problems remain open, and we are explicit about what @sec-theory does
-and does not settle. Its asymptotic results are conjectures with heuristic
-derivations and numerical verification: the regularity conditions are
-stated but not minimized, and Conjecture M1 places a high-level
-asymptotic-linearity condition on the projected machine-learning imputation
-error rather than proving it separately for GAM, MARS, or neural backfitting.
-SUDO is therefore best read as a
-simulation-supported estimator with a worked-out first-order theory, not a
-fully proven inferential procedure. Extending the machine-learning results
-beyond the data-generating structures studied, and to unordered (multinomial)
+and does not settle. Theorem S1 proves the projected expansion for a
+deterministic logistic-series learner, and Theorem S2 verifies its
+full-pipeline bootstrap stability under explicit series and conditional
+bootstrap conditions. The broader adaptive-learner statements remain
+Conjectures M1 and M2: their regularity conditions are stated but not
+minimized, and the projected asymptotic-linearity condition has not been
+proved separately for GAM, MARS, or neural backfitting. SUDO therefore has
+a proved projected expansion and bootstrap result for the theorem-reference
+specialization, while inference with the adaptive learners remains
+simulation-supported. Extending those adaptive results beyond the
+data-generating structures studied, and to unordered (multinomial)
 outcomes, which require a vector surrogate and have no single scalar
 effect, are natural next steps. A Bayesian ensemble imputation model, whose
 posterior draws are literal proper imputations, is the tidiest candidate for
@@ -895,12 +906,14 @@ asymptotic distribution of the pooled estimate at fixed $B$, and the
 resulting account of Rubin's variance.
 
 A word on status. Results established below by direct differentiation,
-conditioning, or inequalities are labeled propositions. The asymptotic
-expansions and bootstrap statements are labeled conjectures because the
-manuscript gives heuristic derivations and numerical verification, not
-complete proofs. In particular, the learner-specific projected
-asymptotic-linearity and bootstrap-stability conditions remain unproved for
-the implemented learners. Every closed-form expression is checked
+conditioning, or inequalities are labeled propositions. The general
+asymptotic expansions and adaptive-learner bootstrap statements are labeled
+conjectures because the manuscript gives heuristic derivations and numerical
+verification, not complete proofs. The deterministic-series specialization
+is labeled a theorem because complete proofs are supplied. The
+learner-specific projected asymptotic-linearity and bootstrap-stability
+conditions remain unproved for the implemented adaptive learners. Every
+closed-form expression is checked
 numerically in the project repository, against numerical differentiation
 for the pass-through derivatives and against Monte Carlo for the variance
 decomposition.
@@ -965,9 +978,10 @@ cross-fitted flexible imputation index without requiring a single
 $\hat\beta$ or a covariance matrix. Its key condition is an asymptotically
 linear residual-weighted projection of the fitted index error. This is a
 learner-level condition, not a consequence of cross-fitting or structural
-partial linearity alone. We verify the generated-outcome linearization for
-the three implemented learners, but do not claim that their projected
-functional condition has been proved.
+partial linearity alone. Theorems S1 and S2 discharge it for the
+deterministic-series reference. We verify the generated-outcome
+linearization for the three adaptive learners, but do not claim that their
+projected functional condition has been proved.
 
 ## The pass-through map for general $J$
 
@@ -1065,7 +1079,10 @@ replacing the oracle completion by the fitted completion, and their
 interactions with $\hat v_{-k}-v_0$ are $o_p(n^{-1/2})$. **(M4)** The
 pass-through map is twice continuously differentiable on a neighbourhood
 reached with probability tending to one, with a dominated second derivative;
-the auxiliary uniforms are independent of the sample and one another.
+the auxiliary uniforms are independent of the sample and one another; and
+the centered completion
+$S\{\hat v_{-k}\}-\psi\{\hat v_{-k};v_0\}$ converges in
+conditional $L_2(R^2)$ to its oracle counterpart.
 
 Condition (M2) is the substantive imputation-learner requirement. Prediction
 consistency alone does not imply it because the imputation model is outside
@@ -1110,6 +1127,98 @@ additional $G'\Sigma_\beta G/B$ term in @eq-vb. A flexible learner instead
 keeps its fitted index fixed across the $B$ point-estimate completions and
 uses the full-pipeline bootstrap to propagate its sampling variability.
 
+### A proved reference learner
+
+The general conjecture becomes a theorem for a deterministic logistic-series
+learner. This learner is a proof reference, not the practical default. Let
+$$z_n(D,X)=\{1,D,P_n(X)'\}',\qquad
+\hat v_{-k}(D,X)=z_n(D,X)'\hat\beta_{-k},$$
+where the dictionary $P_n$ is fixed before observing $Y$ and contains
+functions of $X$ only. The implemented reference uses additive normalized
+Hermite polynomials and keeps $D$ as a mandatory, unpenalized linear term.
+The population logistic projection $\beta_n$ solves
+$$E[z_n\{Y-\Lambda(z_n'\beta_n)\}]=0,$$
+and we write $v_n=z_n'\beta_n$,
+$$
+A_n=E[\Lambda(v_n)\{1-\Lambda(v_n)\}z_nz_n'],\qquad
+a_n=E[R\,\partial_v\psi(v_n;v_0)z_n],
+$$
+$$
+\rho_n(W)=a_n'A_n^{-1}z_n\{Y-\Lambda(v_n)\},\qquad
+h_n(\beta)=E[R\{\psi(z_n'\beta;v_0)-v_0\}].
+$$
+
+We use five series-learner (SL) conditions. **(SL1)** The dictionary is
+deterministic, has dimension $q_n$, the eigenvalues of $A_n$ are bounded away
+from zero and infinity, and the largest eigenvalue of $E[z_nz_n']$ is
+bounded. **(SL2)** Uniformly over unit vectors $t$,
+$E|t'z_n|^4$ is bounded, $q_n^3/n\to0$, and
+$\max_i\|z_{n,i}\|=o_p\{(n/q_n)^{1/2}\}$.
+**(SL3)** The fold-specific logistic maximum-likelihood estimates exist
+uniquely with probability tending to one, so asymptotic separation is
+excluded. **(SL4)** The approximation is undersmoothed for the target:
+$\sqrt n\,h_n(\beta_n)\to0$ and
+$$\sqrt n\,E[|R|\{v_n(D,X)-v_0(D,X)\}^2]\to0.$$
+**(SL5)** $\rho_n$ obeys Lindeberg's condition,
+$\operatorname{Var}\{\rho_n(W)\}\to\tau^2<\infty$, and the adjustment
+nuisances satisfy (M3). These are standard series restrictions specialized
+to the residual-weighted functional. The rate and functional conditions are
+in the spirit of @newey1997series; bootstrap theory for semiparametric
+generalized additive models provides a related but different result
+[@hardle2004bootstrap].
+
+**Theorem S1 (series expansion).** *Under (A1), (M4), and (SL1)-(SL5), with
+fixed $K$ and fixed $B$, the deterministic series learner satisfies (M2)
+with influence $\rho_n$. Consequently*
+$$
+\sqrt n(\hat\theta_B-\theta_0)
+=J_\theta^{-1}\frac1{\sqrt n}\sum_{i=1}^n
+\{e_iR_i+\rho_n(W_i)+R_i\bar u_i\}+o_p(1),
+$$ {#eq-series-expansion}
+*and the limit is normal whenever the variance of the displayed triangular
+array converges.*
+
+*Proof.* The fold training score and a mean-value expansion give, uniformly
+over the fixed number of folds,
+$$
+\hat\beta_{-k}-\beta_n
+=A_n^{-1}\frac{1}{|I_k^c|}
+\sum_{i\in I_k^c}z_{n,i}\{Y_i-\Lambda(v_{n,i})\}
++r_{n,k},\qquad
+\max_k|a_n'r_{n,k}|=o_p(n^{-1/2}).
+$$
+To see the remainder directly, expand the logistic score at $\beta_n$.
+(SL1)-(SL3) give uniform convergence of the fold Hessians to $A_n$; the
+logistic third derivative is bounded, and the envelope and dimension rates
+in (SL2) make the quadratic score remainder $o_p(n^{-1/2})$. Thus this step
+does not assume the projected expansion.
+
+A Taylor expansion of $h_n$ at $\beta_n$ has derivative $a_n$ and quadratic
+remainder bounded by a constant times
+$E[|R|\{z_n'(\hat\beta_{-k}-\beta_n)\}^2]$. Conditions (SL1)-(SL2) make the
+fold-averaged remainder $o_p(n^{-1/2})$. In balanced $K$-fold
+cross-fitting, each observation occurs in exactly $K-1$ training samples,
+and
+$$
+\sum_k\frac{|I_k|}{n}\frac{\mathbf1\{i\in I_k^c\}}{|I_k^c|}=\frac1n.
+$$
+The fold-averaged linear terms therefore equal
+$n^{-1}\sum_i\rho_n(W_i)+o_p(n^{-1/2})$. Condition (SL4) removes the series
+approximation shift at the target scale. The generated-outcome Taylor
+remainder is also negligible by (SL4) and (M4). Finally, (M3) removes the
+adjustment-nuisance terms, while the completion split in @eq-split supplies
+$e_iR_i+R_i\bar u_i$. Lindeberg's theorem and (SL5) give the stated normal
+limit. $\square$
+
+The target-undersmoothing clause in (SL4) is essential. If only its
+quadratic-approximation clause holds, the same argument centers the estimator
+at the series-projection target
+$$\theta_n=\theta_0+J_\theta^{-1}h_n(\beta_n),$$
+not at $\theta_0$. The fixed degree-three implementation below measures this
+population shift directly. A growing dictionary can satisfy the
+undersmoothing condition; a convenient fixed dictionary should not be
+treated as automatically eliminating approximation bias.
+
 ## Bootstrap propagation for the learner class
 
 The fixed-$B$ randomized estimator needs a slightly different bootstrap
@@ -1118,7 +1227,8 @@ $\hat\theta_B^*$ rerun the entire procedure on an Efron resample, including
 fresh surrogate uniforms, and let
 $$\mu_n^*=E^*(\hat\theta_B^*\mid\mathcal D_n)$$
 average over resampling, any redrawn fold partition, and the fresh
-surrogate randomness. We add four conditional conditions. **(MB1)** The
+surrogate randomness. We add four machine-learning bootstrap (MB)
+conditions. **(MB1)** The
 projected learner expansion in (M2) is bootstrap stable: after centering, its
 resampled version has influence
 $n^{-1/2}\sum_i(N_i-1)\rho(W_i)+o_{P^*}(1)$ in outer probability.
@@ -1159,6 +1269,36 @@ the fitted index in that term by its limit. The conditional Lindeberg
 central limit theorem and (MB4) give the same law for fixed or redrawn
 regular folds. Conditional second-moment convergence gives the variance
 statement.
+
+**Theorem S2 (series full-pipeline bootstrap).** *Suppose the conditions of
+Theorem S1 hold uniformly on Efron resamples, the empirical Hessian and score
+moments in (SL1)-(SL3) converge conditionally, and (MB2)-(MB4) hold. Also
+suppose the empirical second moment of
+$e_iR_i+\rho_n(W_i)$ converges to its population counterpart and its maximum
+absolute value is $o_p(\sqrt n)$. Then the deterministic series learner
+satisfies (MB1). Consequently
+@eq-ml-bootstrap holds for this learner, for either fixed or independently
+redrawn regular folds.*
+
+*Proof.* On a resample with multiplicities $N_i$, expand each fold training
+score at its original-sample solution. Conditional convergence of the
+resampled Hessian and the same bounded logistic derivative used in Theorem
+S1 give
+$$
+\sum_k\frac{|I_k|}{n}
+\{h_n(\hat\beta_{-k}^*)-h_n(\hat\beta_{-k})\}
+=\frac1n\sum_{i=1}^n(N_i-1)\rho_n(W_i)+o_{P^*}(n^{-1/2})
+$$
+in outer probability. The balanced-fold identity from Theorem S1 applies
+conditionally for a fixed partition. For an independently redrawn regular
+partition, (MB4) makes the difference between its inclusion weights and
+$1/n$ negligible at the same scale. This proves (MB1) rather than assuming
+it. The exchangeably weighted central limit theorem applies to
+$eR+\rho_n$; (MB2) removes the adjustment-nuisance remainder, and (MB3)
+permits replacement of the fitted index in the centered completion term by
+its limit. Fresh completion terms contribute $\sigma_u^2/B$ conditionally.
+Conditional second-moment convergence yields bootstrap-variance
+consistency. $\square$
 
 The centering in @eq-ml-bootstrap is substantive. At fixed $B$,
 $\hat\theta_B-\mu_n^*$ contains $O_p(n^{-1/2})$ surrogate Monte Carlo noise.
@@ -1497,7 +1637,7 @@ All designs instantiate @eq-dgp with one of two covariate structures:
 | DGP variation, continuous $D$ | S5, $D = 0.7\pi(X) + N(0,1)$ | logistic | $(0)$ or $(0, 2)$ | 1, 2.5 | 2000 | 200 |
 | DGP variation, interaction | S5 plus $X_1 X_2$ in $g_0$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
 | DGP variation, dimension | S5 with $p = 10$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
-| DGP variation, overlap | S5, $\pi(X)$ scaled $2.5\times$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
+| DGP variation, overlap | S5, treatment-assignment index $\pi(X)$ scaled $2.5\times$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
 
 : Data-generating processes. $\kappa$ lists the interior cutpoints, so
 $(0)$ is binary and a pair gives $J = 3$. {#tbl-dgp}
@@ -1539,13 +1679,16 @@ $\hat V = \hat\alpha D + \hat f(X)$ with $\hat f$ a single-hidden-layer
 neural net (`nnet`, `size = 4`, `decay = 0.3`, five backfitting iterations,
 selected on target-level Monte Carlo (MC) bias) and 100 full-pipeline
 bootstrap resamples.
-The common learner comparison uses 50 resamples for each arm. Its GAM has an
-unpenalized linear treatment term and smooths of the five covariates. Its
-MARS fit builds degree-two bases from $X$ only (`nk = 21`, penalty 3), then
+The common adaptive-learner comparison uses 50 resamples for each arm. Its
+GAM has an unpenalized linear treatment term and smooths of the five
+covariates. The MARS fit builds degree-two bases from $X$ only (`nk = 21`,
+penalty 3), then
 jointly estimates those basis coefficients and a mandatory linear treatment
 coefficient by logistic regression. This construction is needed because
 `earth::linpreds` alone still permits the named predictor in interaction
-terms.
+terms. The theorem-reference series is evaluated separately. It uses
+additive normalized Hermite polynomials through degree three, a dictionary
+fixed before observing $Y$, and a separate mandatory linear treatment term.
 
 **Wine application.** Full model `ordinal::clm` on $D$ and either the raw
 covariates (linear) or $\mathrm{ns}(X_k, 3)$ (spline); partialling nuisances
@@ -1607,6 +1750,35 @@ logit:
 
 The last four entries are all $J = 3$: widening a three-category partition
 drives $c$ from well below the binary value to nearly 1.
+
+## Deterministic-series expansion (Theorems S1 and S2)
+
+`R/theory_pl_series.R` checks the proof-specific quantities without using
+the fitted SUDO estimate as its own benchmark. It computes the population
+logistic-series projection and its influence function by product
+Gauss-Hermite quadrature, then compares them with independently fitted
+five-fold estimates. The implemented dictionary uses normalized additive
+Hermite polynomials through degree three and a separate mandatory linear
+treatment term.
+
+The population projection shifts the SUDO target by $-0.00082$ at
+$\theta_0=1.5$ and $-0.00167$ at $\theta_0=3$. These small numbers are
+measured approximation errors for this design, not a substitute for (SL4).
+At $n=4000$, the empirical standard deviation divided by the
+influence-function prediction is 0.989 and 0.985 at the two signals. The
+root-mean-square expansion remainder divided by the predicted standard
+deviation falls from 0.439 to 0.198 at the moderate signal and from 0.623 to
+0.289 at the strong signal as $n$ increases from 1000 to 4000. The
+strong-signal remainder is visibly slower to disappear, consistent with the
+near-separation concern isolated in (SL3).
+
+For 30 datasets at $n=2000$ and 50 Efron resamples per dataset, the bootstrap
+standard-deviation ratio to the weighted influence expansion is
+1.015 with fixed folds and 1.014 with redrawn folds at $\theta_0=1.5$; the
+corresponding ratios are 1.076 and 1.077 at $\theta_0=3$. All 3000 paired
+bootstrap resamples are complete. These checks validate the algebra and
+finite-sample behavior of the theorem reference. The proof itself is
+Theorems S1 and S2, not the simulation.
 
 ## Machine-learning expansion (Conjecture M1)
 

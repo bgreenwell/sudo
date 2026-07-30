@@ -25,13 +25,15 @@ R and Python default. The paper also states the conditional latent-error law
 explicitly, distinguishes SUDO from existing logistic DML, and qualifies the
 black-box evidence by design.
 
-The principal unresolved issue is therefore learner-specific inference for a
-cross-fitted machine-learning imputation model. Conjecture M2 states
-conditional convergence and variance consistency for the full-pipeline
-bootstrap under a projected learner-stability condition. That condition is
-not yet verified separately for GAM, MARS, or neural backfitting. The
-fixed-imputation reference distribution and covariate-direction leakage
-bound are now derived and numerically validated.
+The principal unresolved issue is now learner-specific inference for the
+three adaptive imputation algorithms. The paper closes the proof route for
+one tractable case: Theorem S1 derives the projected influence expansion for
+a deterministic logistic-series learner, and Theorem S2 establishes its
+full-pipeline bootstrap stability under explicit series and conditional
+bootstrap conditions. The corresponding conditions are not yet verified
+separately for GAM, MARS, or neural backfitting. The fixed-imputation
+reference distribution and covariate-direction leakage bound are also
+derived and numerically validated.
 
 The previous external assessment was useful mainly as an agenda check. It
 correctly identified several open areas already recorded in
@@ -89,9 +91,12 @@ efficiency claim is made.
 The paper states that partially linear machine-learning imputation models
 and a full-pipeline bootstrap attain nominal coverage in the designs studied.
 The repository supports that statement for GAM, MARS, and neural
-backfitting. Conjecture M2 adds a learner-class statement, but its projected
-bootstrap-stability condition remains a learner-specific proof obligation,
-so it does not support an unconditional general validity claim.
+backfitting. A deterministic Hermite-series implementation serves a
+different role: it is the proof reference, not the recommended adaptive
+learner. Conjecture M2 adds a learner-class statement, but its projected
+bootstrap-stability condition remains a learner-specific proof obligation
+for the adaptive algorithms, so it does not support an unconditional general
+validity claim for them.
 
 The abstract and contributions should use design-specific language, such as:
 
@@ -100,21 +105,43 @@ The abstract and contributions should use design-specific language, such as:
 
 The discussion already contains much of the necessary qualification.
 
-### 4. The machine-learning theory is high-level rather than learner-specific
+### 4. The machine-learning theory now has one proved specialization
 
-Conjecture M1 now treats the cross-fitted flexible imputation index
+Conjecture M1 treats the cross-fitted flexible imputation index
 `v(D, X) = alpha D + f(X)` directly and retains the parametric formulas as a
 special-case corollary. It isolates the first-order residual-weighted
 projection of the fitted-index error and the fixed-imputation completion
 noise. Conjecture M2 supplies the corresponding bootstrap statement under
-conditional stability. The remaining gaps are learner-specific:
+conditional stability.
+
+Theorems S1 and S2 discharge the projected expansion and bootstrap-stability
+obligations for a deterministic logistic series whose dictionary contains
+functions of `X` only and a separate mandatory linear treatment term.
+`R/theory_pl_series.R` independently checks the population projection,
+influence expansion, and fixed/redrawn-fold Efron bootstrap. At `n = 4000`,
+the empirical-to-influence SD ratios are 0.989 and 0.985 at the two signal
+levels. The normalized expansion remainders fall from 0.439 to 0.198 and
+from 0.623 to 0.289 between `n = 1000` and `n = 4000`. Bootstrap SD ratios
+are 1.014 to 1.077. The fixed degree-three population target shifts are
+-0.00082 and -0.00167, which are measured approximation errors rather than a
+proof of target undersmoothing.
+
+Newey's series-estimation paper supplies the relevant primary conditions for
+rates and asymptotic normality of nonlinear series functionals
+([Journal of Econometrics 79, 147-168](https://doi.org/10.1016/S0304-4076(97)00011-0)).
+Härdle, Huet, Mammen, and Sperlich give a related bootstrap result for
+semiparametric generalized additive models
+([Econometric Theory 20, 265-300](https://doi.org/10.1017/S026646660420202X)).
+Neither source proves the SUDO generated-outcome result directly, so the
+paper uses them as context and supplies its own specialization.
+
+The remaining gaps are specific to the adaptive learners:
 
 - prove the projected asymptotic-linearity condition for GAM, MARS, and
   neural backfitting;
 - prove its conditional bootstrap analogue for those learners;
 - verify the stated uniform remainder and conditional nuisance-rate
-  conditions rather than assuming them at learner-class level;
-- derive the correct fixed-imputation reference distribution.
+  conditions rather than assuming them at learner-class level.
 
 Tang and Westling provide general bootstrap conditions for asymptotically
 linear estimators with machine-learned nuisances
@@ -296,15 +323,15 @@ bias and coverage criteria as the existing default.
 
 ### Phase 3: Develop a learner-class asymptotic expansion
 
-Status: the learner-class expansion is now stated as Conjecture M1. It requires
-an asymptotically linear residual-weighted projection of the fold-specific
-imputation error and yields
-`Var(e R + rho(W)) + sigma_u^2/B`, scaled by `J_theta^-2`.
-`R/theory_ml_expansion.R` verifies the generated-outcome Taylor step for GAM,
-MARS, and PL-backfit: the second-order ratio is 0.016 to 0.027 in every cell,
-and the projected remainder is small relative to the first-order scale. The
-remaining theoretical task is learner-specific verification of the projected
-asymptotic-linearity condition, especially under bootstrap resampling.
+Status: complete for the deterministic-series reference and narrowed for the
+adaptive learners. Conjecture M1 requires an asymptotically linear
+residual-weighted projection of the fold-specific imputation error and yields
+`Var(e R + rho(W)) + sigma_u^2/B`, scaled by `J_theta^-2`. Theorem S1 derives
+that projection from the logistic score for the deterministic series rather
+than assuming it. `R/theory_ml_expansion.R` separately verifies the
+generated-outcome Taylor step across the implemented learners. The remaining
+theoretical task is algorithm-specific projected asymptotic linearity for
+GAM, MARS, and neural backfitting.
 
 Define the imputation estimator by fold-specific functions
 `v_hat[-k](D, X) = alpha_hat[-k] D + f_hat[-k](X)`, without requiring a
@@ -323,14 +350,15 @@ Required deliverables:
   laws;
 - the existing parametric formula as a special-case corollary.
 
-Acceptance criterion: a complete proof that does not assume the desired
-expansion or bootstrap consistency as a hypothesis.
+Acceptance criterion: met for the deterministic series. The same criterion
+remains unmet for the adaptive algorithms.
 
 ### Phase 4: Prove or narrow full-pipeline bootstrap validity
 
-Status: narrowed to a precise learner-class conjecture. Conjecture M2 states
-conditional weak convergence around the bootstrap conditional mean and
-bootstrap-variance consistency under projected learner stability,
+Status: proved for the deterministic-series reference and narrowed to a
+precise learner-class conjecture for the adaptive algorithms. Conjecture M2
+states conditional weak convergence around the bootstrap conditional mean
+and bootstrap-variance consistency under projected learner stability,
 conditional nuisance rates, integrated-map differentiability, randomized
 completion continuity, and regular folds. The raw inverse-transform map need
 not be differentiable for every fixed uniform. Fixed and redrawn folds are
@@ -342,8 +370,9 @@ randomness leaves an order-$n^{-1/2}$ difference between the realized
 randomized estimate and the bootstrap conditional mean. The conjecture
 therefore supports the normal interval based on the full-pipeline bootstrap
 SD, but not a conventional percentile or studentized interval without an
-additional argument or increasing imputation count. Learner-specific
-verification of projected bootstrap stability remains open.
+additional argument or increasing imputation count. Theorem S2 verifies
+projected bootstrap stability for the deterministic series. The same
+verification remains open for GAM, MARS, and neural backfitting.
 
 The paired numerical check is complete for GAM, MARS, and neural backfitting
 at both effect sizes. Fixed/redrawn mean-SE ratios range from 0.97 to 1.08,
@@ -356,10 +385,10 @@ coverage is 0.93 to 0.97; conventional studentization ranges from 0.80 to
 0.93 and is not promoted.
 
 Completed deliverables are the centered conditional law, bootstrap-variance
-consistency, integrated-map argument, fixed/redrawn fold comparison, and
-direct full/within/improper variance comparison. The remaining deliverable
-is learner-specific verification of (MB1), with its uniform remainder and
-conditional-rate requirements, for each implemented learner.
+consistency, integrated-map argument, series proof, fixed/redrawn fold
+comparison, and direct full/within/improper variance comparison. The
+remaining deliverable is verification of (MB1), with its uniform remainder
+and conditional-rate requirements, for each adaptive learner.
 
 ### Phase 5: Derive fixed-imputation inference
 
@@ -399,8 +428,7 @@ After the inferential work:
 
 ## Recommended execution order
 
-Items 1 through 6 in the original sequence are complete. The remaining
-order is:
+The deterministic-series theorem batch is complete. The remaining order is:
 
 1. verify the projected asymptotic-linearity and bootstrap-stability
    conditions separately for GAM, MARS, and neural backfitting;

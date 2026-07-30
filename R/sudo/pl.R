@@ -1,10 +1,10 @@
 # Partially-linear (PL) full models: V = alpha*D + f(X), D structurally
-# forbidden from interacting with X, five different ways. Each fitter
+# forbidden from interacting with X, six different ways. Each fitter
 # returns the same list(lp_hat, fit_fold, to_lp) shape fit_blackbox_index()
 # does, so sudo_binary()'s dispatch, nuisance fitting, recentered-bootstrap
-# draws, and Rubin pooling work unchanged for all three.
-# Requires earth, ranger, nnet, xgboost, mboost available; fwl.R/estimator.R
-# sourced first (uses make_folds, recal_iso is unused here).
+# draws, and Rubin pooling work unchanged for every variant.
+# Optional variants require earth, ranger, nnet, xgboost, or mboost;
+# fwl.R/estimator.R must be sourced first.
 
 # ---- (0) native GAM: parametric D plus smooths of X -----------------------
 #
@@ -31,7 +31,79 @@ fit_pl_gam <- function(d, folds, method = "GCV.Cp") {
   list(lp_hat = to_lp(p_hat), fit_fold = fit_fold, to_lp = to_lp)
 }
 
-# ---- (1) backfitting GPLM: IRLS + black-box smoother for f(X) ------------
+# ---- (1) deterministic additive series: mandatory D + Hermite bases ------
+#
+# This is the theorem-reference learner. The basis is fixed before seeing Y:
+# normalized probabilists' Hermite polynomials of degrees 1,...,degree are
+# applied separately to each X column. The caller is responsible for placing
+# X on the scale for which this dictionary is intended. In the validation
+# design X is standard normal, so the columns are orthonormal in population.
+# D is added only after the X dictionary is built and therefore cannot enter
+# a hinge, polynomial, or treatment-by-covariate interaction.
+hermite_series_basis <- function(X, degree = 3L) {
+  X <- as.matrix(X)
+  degree <- as.integer(degree)
+  stopifnot(degree >= 1L, all(is.finite(X)))
+  n <- nrow(X)
+  p <- ncol(X)
+  xnames <- colnames(X)
+  if (is.null(xnames)) xnames <- paste0("X", seq_len(p))
+  out <- matrix(
+    0, nrow = n, ncol = p * degree,
+    dimnames = list(
+      NULL,
+      unlist(lapply(xnames, function(x) paste0(x, "_h", seq_len(degree))))
+    )
+  )
+  for (j in seq_len(p)) {
+    x <- X[, j]
+    h_prev <- rep(1, n)
+    h_cur <- x
+    out[, (j - 1L) * degree + 1L] <- h_cur
+    if (degree >= 2L) {
+      for (r in 2:degree) {
+        h_next <- (x * h_cur - sqrt(r - 1) * h_prev) / sqrt(r)
+        out[, (j - 1L) * degree + r] <- h_next
+        h_prev <- h_cur
+        h_cur <- h_next
+      }
+    }
+  }
+  out
+}
+
+fit_pl_series <- function(d, folds, degree = 3L) {
+  basis <- hermite_series_basis(d$X, degree = degree)
+  n <- nrow(basis)
+  design <- cbind(`(Intercept)` = 1, D = d$D, basis)
+
+  fit_fold <- function(train_idx, test) {
+    g <- glm.fit(
+      x = design[train_idx, , drop = FALSE],
+      y = d$Y[train_idx],
+      family = binomial()
+    )
+    coefficients <- g$coefficients
+    coefficients[is.na(coefficients)] <- 0
+    eta <- as.numeric(design[test, , drop = FALSE] %*% coefficients)
+    plogis(eta)
+  }
+
+  to_lp <- function(p) qlogis(pmin(pmax(p, 1e-5), 1 - 1e-5))
+  p_hat <- numeric(n)
+  for (test in folds) {
+    p_hat[test] <- fit_fold(setdiff(seq_len(n), test), test)
+  }
+  list(
+    lp_hat = to_lp(p_hat),
+    fit_fold = fit_fold,
+    to_lp = to_lp,
+    treatment_basis_degree = 1L,
+    series_degree = as.integer(degree)
+  )
+}
+
+# ---- (2) backfitting GPLM: IRLS + black-box smoother for f(X) ------------
 #
 # Standard binomial-GPLM backfitting (Hastie & Tibshirani 1990 style):
 # at each iteration form the IRLS working response/weights at the current
@@ -97,7 +169,7 @@ fit_pl_backfit <- function(d, folds, engine = c("nnet", "ranger"),
   list(lp_hat = to_lp(p_hat), fit_fold = backfit_fold, to_lp = to_lp)
 }
 
-# ---- (2) XGBoost with interaction_constraints -----------------------------
+# ---- (3) XGBoost with interaction_constraints -----------------------------
 #
 # D is placed in its own singleton interaction group, so no tree path can
 # combine a split on D with a split on any X feature: the ensemble
@@ -131,7 +203,7 @@ fit_pl_xgboost <- function(d, folds, max_depth = 4, eta = 0.1,
        .last_bst_feat_names = colnames(feat))
 }
 
-# ---- (3) mboost componentwise gradient boosting ---------------------------
+# ---- (4) mboost componentwise gradient boosting ---------------------------
 #
 # gamboost(Y ~ bols(D) + bbs(X1) + ... + bbs(X5)): D gets a plain linear
 # (ordinary-least-squares) base-learner, each X_j its own P-spline
@@ -173,7 +245,7 @@ fit_pl_mboost <- function(d, folds, use_cvrisk = TRUE, fixed_mstop = 200) {
   list(lp_hat = to_lp(p_hat), fit_fold = fit_fold, to_lp = to_lp)
 }
 
-# ---- (4) MARS basis for X plus a mandatory linear D coefficient -----------
+# ---- (5) MARS basis for X plus a mandatory linear D coefficient -----------
 #
 # earth::linpreds makes a predictor linear but still permits that predictor
 # inside interaction terms. That is not the restriction needed here. Instead,
@@ -214,12 +286,15 @@ fit_pl_mars <- function(d, folds, degree = 2, nk = 41, penalty = 3) {
 # unified dispatcher used by the stage 3j/3k/3l diagnostic scripts (index
 # calibration, variance ratio) so they can call any PL variant uniformly
 fit_pl <- function(d, folds,
-                   variant = c("gam", "backfit", "xgboost", "mboost", "mars"),
+                   variant = c("gam", "series", "backfit", "xgboost",
+                               "mboost", "mars"),
                    pl_engine = "nnet", pl_use_cvrisk = TRUE,
-                   mars_degree = 2, mars_nk = 41, mars_penalty = 3) {
+                   mars_degree = 2, mars_nk = 41, mars_penalty = 3,
+                   series_degree = 3L) {
   variant <- match.arg(variant)
   switch(variant,
         gam = fit_pl_gam(d, folds),
+        series = fit_pl_series(d, folds, degree = series_degree),
         backfit = fit_pl_backfit(d, folds, engine = pl_engine),
         xgboost = fit_pl_xgboost(d, folds),
         mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk),

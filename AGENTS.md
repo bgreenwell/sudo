@@ -47,6 +47,7 @@ Rscript R/theory_variance_terms.R      # fixed-B variance and the Rubin exactnes
 Rscript R/theory_fixed_b_inference.R   # fixed-B mixture and reference laws
 Rscript R/theory_ml_expansion.R        # ML generated-outcome first-order expansion
 Rscript R/theory_ml_bootstrap.R        # fixed vs redrawn full-pipeline bootstrap
+Rscript R/theory_pl_series.R           # proved series expansion and bootstrap checks
 Rscript R/theory_covariate_leakage.R   # exact covariate leak and norm bounds
 Rscript R/theory_ordinal_variance_terms.R # ordinal threshold and Rubin terms
 Rscript R/theory_ordinal_nuisance_ladder.R # isolate ordinal variance inflation
@@ -105,8 +106,10 @@ repository root.
   draws under-cover (about 0.93); stage 2 quantifies this.
 - **Full model includes D.** It estimates `P(Y | D, X)`; the outcome nuisance
   `E[S | X]` strips `D` back out; cross-fitting prevents leakage.
-- **Nuisances fit once.** Only `S` and the parameter draw are redrawn across
-  the `B` iterations (stage 3b shows refitting changes nothing).
+- **Binary nuisances fit once; ordinal outcome nuisances do not.** Stage 3b
+  shows that binary nuisance refitting changes nothing. Stage 5r shows that
+  reusing one outcome nuisance across ordinal completions inflates Rubin's
+  within variance, so the ordinal default refits `E[S | X]` on every draw.
 - **Link conventions.** Binary glm cloglog is a Gumbel-max latent error;
   ordinal clm cloglog is Gumbel-min. `complete_surrogate` handles both.
 - **Diagnostics.** Surrogate-residual variance drift in `X` (via `sure` plus
@@ -123,10 +126,14 @@ repository root.
   (stages 3j to 3s): forcing `V = alpha*D + f(X)` so `D` cannot interact with
   `X`. GAM, MARS, and neural backfitting all pass the common stage-3s
   validation, so the structural learner class is the result, not one fitting
-  algorithm. A "principled" cross-validation tuning procedure can be
-  actively harmful if it optimizes the wrong objective (mboost's `cvrisk`
-  minimizes deviance, not D-coefficient bias, and is the worst arm): any
-  tuning search must select on theta-level MC performance directly.
+  algorithm. A deterministic degree-three Hermite series is included as the
+  proof reference, not the practical default. Theorems S1 and S2 prove its
+  projected expansion and bootstrap stability under explicit series
+  conditions; the corresponding adaptive-learner results remain
+  Conjectures M1 and M2. A "principled" cross-validation tuning procedure
+  can be actively harmful if it optimizes the wrong objective (mboost's
+  `cvrisk` minimizes deviance, not D-coefficient bias, and is the worst arm):
+  any tuning search must select on theta-level MC performance directly.
 - **Truncation pass-through** (paper appendix, Prop A1). Index error
   reaches `theta` with factor `c(e) = 1 - dlogis(-e)*(mu_+(e) - mu_-(e))`,
   rising from about 0.31 to 1 as the signal grows, so
@@ -143,7 +150,8 @@ repository root.
   (`sudo_pipeline_boot`, stage 3p) fixes the SE. The normal bootstrap-SD
   interval is supported under Conjecture M2's high-level conditions; raw
   percentile and conventional studentized intervals are empirical only at
-  fixed B. Stage 3s confirms the result with GAM, MARS, and tuned PL-backfit.
+  fixed B. Stage 3s checks GAM, MARS, and tuned PL-backfit; the series
+  reference has its own theorem-validation stage.
   A recentered within-fold bootstrap under-propagates full-model variance;
   resampling the whole dataset and rerunning the pipeline captures it.
 - **Watch the calibration-slope direction.** Stages 3g and 3j to 3l regress

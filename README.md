@@ -53,7 +53,8 @@ Python package (from `python/`, using [uv](https://docs.astral.sh/uv/)):
 cd python && uv sync
 ```
 
-R scripts need `ordinal`, `mgcv`, `splines`, `nnet`, and `MASS`.
+R scripts need `ordinal`, `mgcv`, `splines`, `nnet`, `MASS`, `earth`, and
+`statmod`.
 
 ## Quick start
 
@@ -77,6 +78,7 @@ Rscript R/stage1_binary_surrogate.R    # binary surrogate FWL, single draw
 Rscript R/stage2_binary_rubin.R        # Rubin pooling: naive vs improper vs proper MI
 Rscript R/stage3_binary_dml.R          # full binary SUDO with ML nuisances
 Rscript R/stage3s_pl_learners.R        # partially-linear learner comparison
+Rscript R/theory_pl_series.R           # series expansion and bootstrap theorem checks
 Rscript R/theory_ml_expansion.R        # learner-class expansion checks
 Rscript R/theory_ml_bootstrap.R        # full-pipeline bootstrap comparison
 Rscript R/theory_fixed_b_inference.R   # fixed-B reference-law comparison
@@ -96,7 +98,9 @@ writes a summary CSV to `R/results/`.
 - `manuscript/paper/` holds the Quarto manuscript (`sudo_paper.qmd`), which
   renders to an arXiv PDF and generates its result tables from `R/results/`.
   Its asymptotic-theory appendix carries the pass-through map, the moment
-  properties, the fixed-`B` variance, and the pooled-variance analysis.
+  properties, the fixed-`B` variance, the pooled-variance analysis, and
+  proved expansion and bootstrap results for a deterministic-series
+  reference learner. The adaptive-learner extensions remain conjectures.
 - `AGENTS.md` documents the workflow, layout, and key design decisions.
 
 ## Development
