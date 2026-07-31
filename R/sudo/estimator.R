@@ -95,6 +95,7 @@ sudo_binary <- function(d, B = 25, n_folds = 5, folds = NULL, proper = TRUE,
                         refit_S_nuisance = FALSE, proper_boot = FALSE,
                         recalibrate = FALSE, nn_size = 8, nn_decay = 0.01,
                         pl_engine = "nnet", pl_use_cvrisk = TRUE,
+                        pl_fixed_mstop = 200,
                         pl_n_iter = 5, mars_degree = 2, mars_nk = 41,
                         mars_penalty = 3, series_degree = 3L, link = "logit",
                         fit_l = fit_gam, fit_m = fit_gam_binomial) {
@@ -166,7 +167,8 @@ sudo_binary <- function(d, B = 25, n_folds = 5, folds = NULL, proper = TRUE,
                                             link = link),
                 pl_xgboost = fit_pl_xgboost(d, folds),
                 pl_mboost  = fit_pl_mboost(d, folds,
-                                           use_cvrisk = pl_use_cvrisk),
+                                           use_cvrisk = pl_use_cvrisk,
+                                           fixed_mstop = pl_fixed_mstop),
                 pl_mars = fit_pl_mars(d, folds, degree = mars_degree,
                                       nk = mars_nk, penalty = mars_penalty))
     fit_fold <- bb$fit_fold

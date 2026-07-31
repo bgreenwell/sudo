@@ -289,6 +289,7 @@ fit_pl <- function(d, folds,
                    variant = c("gam", "series", "backfit", "xgboost",
                                "mboost", "mars"),
                    pl_engine = "nnet", pl_use_cvrisk = TRUE,
+                   pl_fixed_mstop = 200,
                    mars_degree = 2, mars_nk = 41, mars_penalty = 3,
                    series_degree = 3L) {
   variant <- match.arg(variant)
@@ -297,7 +298,8 @@ fit_pl <- function(d, folds,
         series = fit_pl_series(d, folds, degree = series_degree),
         backfit = fit_pl_backfit(d, folds, engine = pl_engine),
         xgboost = fit_pl_xgboost(d, folds),
-        mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk),
+        mboost  = fit_pl_mboost(d, folds, use_cvrisk = pl_use_cvrisk,
+                                fixed_mstop = pl_fixed_mstop),
         mars = fit_pl_mars(d, folds, degree = mars_degree, nk = mars_nk,
                            penalty = mars_penalty))
 }
