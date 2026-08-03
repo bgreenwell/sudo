@@ -11,7 +11,9 @@
 # This is the same structural model used by crossfit_fullmodel_gam(), exposed
 # through the black-box fitter contract so a full-pipeline bootstrap can refit
 # it without also injecting coefficient draws inside each resample.
-fit_pl_gam <- function(d, folds, method = "GCV.Cp") {
+fit_pl_gam <- function(d, folds, method = "GCV.Cp",
+                       link = c("logit", "probit", "cloglog")) {
+  link <- match.arg(link)
   X <- as.data.frame(d$X)
   n <- nrow(X)
   dat <- data.frame(Y = d$Y, D = d$D, X)
@@ -19,13 +21,19 @@ fit_pl_gam <- function(d, folds, method = "GCV.Cp") {
   fml <- as.formula(paste("Y ~", rhs))
 
   fit_fold <- function(train_idx, test) {
-    m <- mgcv::gam(fml, family = binomial, data = dat[train_idx, , drop = FALSE],
+    m <- mgcv::gam(fml, family = binomial(link = link),
+                   data = dat[train_idx, , drop = FALSE],
                    method = method)
     as.numeric(predict(m, newdata = dat[test, , drop = FALSE],
                        type = "response"))
   }
 
-  to_lp <- function(p) qlogis(pmin(pmax(p, 1e-5), 1 - 1e-5))
+  to_lp <- switch(
+    link,
+    logit = function(p) qlogis(pmin(pmax(p, 1e-5), 1 - 1e-5)),
+    probit = function(p) qnorm(pmin(pmax(p, 1e-5), 1 - 1e-5)),
+    cloglog = function(p) log(-log1p(-pmin(pmax(p, 1e-5), 1 - 1e-5)))
+  )
   p_hat <- numeric(n)
   for (test in folds) p_hat[test] <- fit_fold(setdiff(seq_len(n), test), test)
   list(lp_hat = to_lp(p_hat), fit_fold = fit_fold, to_lp = to_lp)
@@ -291,10 +299,10 @@ fit_pl <- function(d, folds,
                    pl_engine = "nnet", pl_use_cvrisk = TRUE,
                    pl_fixed_mstop = 200,
                    mars_degree = 2, mars_nk = 41, mars_penalty = 3,
-                   series_degree = 3L) {
+                   series_degree = 3L, link = "logit") {
   variant <- match.arg(variant)
   switch(variant,
-        gam = fit_pl_gam(d, folds),
+        gam = fit_pl_gam(d, folds, link = link),
         series = fit_pl_series(d, folds, degree = series_degree),
         backfit = fit_pl_backfit(d, folds, engine = pl_engine),
         xgboost = fit_pl_xgboost(d, folds),

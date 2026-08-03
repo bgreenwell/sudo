@@ -45,7 +45,11 @@ mc_cluster <- function(exports = character(), n_cores = NULL) {
   cl <- parallel::makeCluster(n_cores)
   invisible(parallel::clusterEvalQ(cl, {
     source("R/sudo/fwl.R"); source("R/sudo/surrogate.R")
-    source("R/sudo/rubin.R"); source("R/sudo/mc.R")
+    source("R/sudo/rubin.R"); source("R/sudo/pl.R")
+    source("R/sudo/discrete.R"); source("R/sudo/estimator.R")
+    if (file.exists("R/sudo/count_validation.R"))
+      source("R/sudo/count_validation.R")
+    source("R/sudo/mc.R")
     suppressPackageStartupMessages(library(mgcv))
   }))
   if (length(exports)) parallel::clusterExport(cl, exports)

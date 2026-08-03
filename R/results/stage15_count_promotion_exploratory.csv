@@ -1,0 +1,6 @@
+"arm","all_bias_ok","all_quality_ok","promote_coverage","protocol_promote_coverage","forced_coverage"
+"oracle",TRUE,TRUE,FALSE,FALSE,FALSE
+"ranger",FALSE,FALSE,FALSE,FALSE,FALSE
+"wrong_poisson_cdf",FALSE,FALSE,FALSE,FALSE,FALSE
+"xgb_constrained",FALSE,FALSE,FALSE,FALSE,FALSE
+"xgb_unrestricted",FALSE,FALSE,FALSE,FALSE,FALSE

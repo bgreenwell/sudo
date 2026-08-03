@@ -1,0 +1,3 @@
+"learner","config","worst_abs_bias","mean_normalized_index_rmse","mean_index_correlation","mean_oracle_log_score_fraction","max_depth","min_child_weight","nrounds","min.node.size","mtry"
+"xgboost","xgb_d2_c20_r500",0.0513296460972115,0.299555343547896,0.955667436599783,0.620578998633752,2,20,500,NA,NA
+"ranger","ranger_node5_mtrysqrt",0.049381986125204,0.470671175531419,0.901165660211486,-1.56421081871551,NA,NA,NA,5,"sqrt"

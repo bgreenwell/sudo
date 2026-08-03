@@ -6,12 +6,12 @@ this before making changes.
 ## Project
 
 **SUDO** (Surrogate-Assisted Double Machine Learning) is causal inference for
-binary and ordinal outcomes in the DML partially linear model. A discrete
-outcome `Y` is completed to a continuous latent-utility *surrogate* (a
-truncated inverse-transform draw from the assumed link law); FWL
-partialling-out runs on each completed dataset; and `B` proper
-multiple-imputation draws are pooled with Rubin's rules. The theory notes are
-in the paper's asymptotic-theory appendix; the paper is in
+binary, ordinal, and gated count outcomes in the DML partially linear model.
+Binary and ordinal outcomes are completed to continuous latent-utility
+surrogates, and proper multiple-imputation draws are pooled with Rubin's
+rules. Counts use randomized-CDF or analytic Rao-Blackwell completion, with
+fitted-learner uncertainty propagated by the full-pipeline bootstrap. The
+theory notes are in the paper's asymptotic-theory appendix; the paper is in
 `manuscript/paper/`.
 
 ## Workflow: R first, then Python
@@ -53,6 +53,10 @@ Rscript R/theory_pl_series.R           # proved series expansion and bootstrap c
 Rscript R/theory_covariate_leakage.R   # exact covariate leak and norm bounds
 Rscript R/theory_ordinal_variance_terms.R # ordinal threshold and Rubin terms
 Rscript R/theory_ordinal_nuisance_ladder.R # isolate ordinal variance inflation
+Rscript R/theory_count_completion.R # analytic count completion and edge checks
+Rscript R/stage15o_count_oracle.R   # coefficientless count oracle bridge
+Rscript R/stage15t_count_tuning.R   # dedicated-seed count learner tuning
+Rscript R/stage15_count.R           # count confirmation and ablations
 
 # Python package (always use uv from python/; no conda or system Python)
 cd python && uv sync && uv run pytest

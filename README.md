@@ -1,12 +1,12 @@
 # SUDO: Surrogate-Assisted Double Machine Learning
 
-Causal inference for binary and ordinal outcomes in the double machine
-learning (DML) partially linear model.
+A uniform completion-and-projection interface for discrete outcomes in the
+double machine learning (DML) partially linear model.
 
 ## The problem
 
-Suppose you have run a study with a categorical outcome, a yes/no event or a
-rated response on a 1 to 5 scale, and you want the causal effect of a
+Suppose you have run a study with a discrete outcome, a yes/no event, a
+rated response on a 1 to 5 scale, or a count, and you want the effect of a
 treatment while adjusting flexibly for many covariates.
 
 For a continuous outcome, DML is the standard tool: predict the outcome from
@@ -15,38 +15,55 @@ predictions, and read the treatment effect from what is left. Subtracting
 first is what makes it safe to use flexible machine-learning models for the
 two predictions without biasing the effect.
 
-That machinery assumes a continuous outcome. A categorical outcome obeys the
-additive structure only on a *latent* scale: there is an unobserved
-continuous utility, and you observe which interval it fell into. Existing DML
-scores can target probability- or distribution-scale contrasts for such
-outcomes, but the additive coefficient on the latent scale needs different
-machinery. Tooling exists for the binary-logistic case; we are aware of no
-existing DML estimator for the ordinal version.
+That machinery assumes the observed outcome is on the additive target scale.
+Running it directly on a discrete label generally targets a different
+quantity. Binary and ordinal cumulative-link models are additive on a latent
+utility scale; Poisson and negative-binomial models are additive on the log
+conditional-mean scale. Tailored orthogonal scores can be derived for a
+chosen law. SUDO supplies one common interface across laws.
 
 ## The idea
 
-SUDO fills the latent outcome in. Each observation is completed to a
-continuous *surrogate*, drawn from the assumed error distribution truncated
-to the interval the observed category implies. Ordinary
-Frisch-Waugh-Lovell partialling-out then applies to the completed data.
+For a fitted discrete CDF $G$, SUDO draws uniformly between
+$G(Y-1\mid D,X)$ and $G(Y\mid D,X)$, maps the draw through a mean-zero
+reference quantile, and adds the fitted scalar index. Ordinary
+Frisch-Waugh-Lovell partialling-out then applies to the continuous
+completion. Cumulative links use their latent error law; counts use a
+standard-normal randomized-quantile reference.
 
-The completions are multiple imputations, so `B` of them are pooled with
-Rubin's rules. The draws have to be *proper*: the imputation model's own
-parameters are redrawn before each completion, thresholds included. Reusing
-one fitted model across every draw hides its sampling error, and the
-intervals come up short.
+For parametric binary and ordinal models, the randomized completions are
+multiple imputations, so `B` of them are pooled with Rubin's rules. These
+draws have to be *proper*: the imputation model's own parameters are redrawn
+before each completion, thresholds included. Flexible fitted learners instead
+use a full-pipeline bootstrap to propagate model uncertainty. Counts also
+admit an analytic Rao-Blackwell completion that integrates out the randomized
+reference draw.
 
-One caveat is structural and worth stating up front. The two adjustment
+Two caveats are structural and worth stating up front. The true index must
+have the form $\eta_0(D,X)=\theta_0 D+g_0(X)$. A fitted imputation learner
+need only supply a pointwise scalar index and usable conditional CDF; it need
+not expose a treatment coefficient. The two adjustment
 models are protected by orthogonality, but the imputation model is not: its
 error is baked into the completed data rather than differenced away, so it
 reaches the estimate at first order. The estimator is DML-assisted rather
 than fully orthogonal, and the imputation model has to be right.
 
-- Binary and ordinal outcomes in one framework, not tied to the logit link.
+- Binary, ordinal, and count laws behind one randomized-CDF interface.
 - Proper multiple-imputation draws for valid coverage, with a built-in link
   diagnostic from the surrogate residuals.
 - A closed-form account of how imputation-model error reaches the estimate,
   and a full-pipeline bootstrap for black-box imputation models.
+
+SUDO does not claim an efficiency or estimation advantage over a correct
+tailored score or direct structured-model coefficient. It equals an
+index-only projection plus an outcome-informed correction that can help,
+hurt, or vanish. A structured coefficient is a special case. Binary
+experiments validate the interface. Ordinal is the principal established
+application. Count and flexible-ordinal support remain R-only until their
+fitted-learner confirmatory stages pass. A six-cell oracle count bridge has
+passed its bias, coverage, SD-to-SE, and analytic-versus-randomized
+completion gates; this validates the count construction, not a deployable
+fitted count learner.
 
 ## Installation
 
@@ -56,8 +73,8 @@ Python package (from `python/`, using [uv](https://docs.astral.sh/uv/)):
 cd python && uv sync
 ```
 
-R scripts need `ordinal`, `mgcv`, `splines`, `nnet`, `MASS`, `earth`, and
-`statmod`.
+R scripts need `ordinal`, `mgcv`, `mboost`, `splines`, `nnet`, `MASS`,
+`earth`, `statmod`, `xgboost`, and `ranger`.
 
 ## Quick start
 
@@ -90,7 +107,20 @@ Rscript R/stage4_ordinal_simple.R      # ordinal J=3, clm full model
 Rscript R/stage5_ordinal_dml.R         # ordinal with flexible nuisances
 Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
 Rscript R/stage6_link_misspec.R        # wrong-link bias and variance-drift diagnostic
+Rscript R/stage8_comparators.R         # direct ordinal coefficients alongside SUDO
+Rscript R/stage9_penalty_path.R        # coefficient-plus-correction identity
+Rscript R/stage11_debiased_comparison.R # tailored orthogonal-score comparison
+Rscript R/stage12_link_flexibility.R   # correct cloglog score and link sensitivity
+Rscript R/theory_discrete_completion.R # randomized-PIT centering across laws
+Rscript R/stage13_binary_cloglog.R     # flexible non-logit binary confirmation
+Rscript R/stage14t_ordinal_tuning.R    # target-level tuning on dedicated seeds
+Rscript R/stage14_ordinal_flexible.R   # flexible ordinal confirmation
+Rscript R/theory_count_completion.R    # analytic count completion and edge checks
+Rscript R/stage15o_count_oracle.R      # passed six-cell count oracle bridge
+Rscript R/stage15t_count_tuning.R      # dedicated-seed count learner tuning
+Rscript R/stage15_count.R              # coefficientless count confirmation and ablations
 Rscript R/wine_application.R           # application: volatile acidity on wine quality
+Rscript R/bikeshare_application.R      # count application with block bootstrap
 ```
 
 Each script prints its Monte-Carlo table, asserts its pass criteria, and

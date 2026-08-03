@@ -101,10 +101,10 @@ sudo_binary <- function(d, B = 25, n_folds = 5, folds = NULL, proper = TRUE,
                         fit_l = fit_gam, fit_m = fit_gam_binomial) {
   if (is.character(full_model)) full_model <- match.arg(full_model)
   # the full model's index and the surrogate's error law must share a scale.
-  # Only pl_backfit is link-aware; the rest fit on the logit scale, and pairing
+  # pl_gam and pl_backfit are link-aware; the rest fit on the logit scale, and pairing
   # them with another link silently rescales theta by the link ratio.
   if (link != "logit" && is.character(full_model) &&
-      !identical(full_model, "pl_backfit")) {
+      !full_model %in% c("pl_gam", "pl_backfit")) {
     stop("full_model '", full_model, "' fits on the logit scale; link = '",
          link, "' would mismatch the surrogate's error law")
   }
@@ -158,7 +158,7 @@ sudo_binary <- function(d, B = 25, n_folds = 5, folds = NULL, proper = TRUE,
                 ranger = ,
                 nnet   = fit_blackbox_index(d, full_model, include_D, folds,
                                             recalibrate, nn_size, nn_decay),
-                pl_gam = fit_pl_gam(d, folds),
+                pl_gam = fit_pl_gam(d, folds, link = link),
                 pl_series = fit_pl_series(d, folds, degree = series_degree),
                 pl_backfit = fit_pl_backfit(d, folds, engine = pl_engine,
                                             nn_size = nn_size,
@@ -244,36 +244,108 @@ sudo_binary <- function(d, B = 25, n_folds = 5, folds = NULL, proper = TRUE,
 sudo_pipeline_boot <- function(d, B_outer = 100, inner_B = 15,
                                level = 0.95,
                                fold_mode = c("redraw", "fixed"),
-                               n_folds = 5, ...) {
+                               n_folds = 5, estimator = sudo_binary,
+                               resample_indices = NULL, fold_builder = NULL,
+                               base_folds = NULL, bootstrap_indices = NULL,
+                               bootstrap_folds = NULL,
+                               ...) {
   fold_mode <- match.arg(fold_mode)
   n <- length(d$Y)
   stopifnot(B_outer >= 2L, inner_B >= 2L, n_folds >= 2L)
   Xd <- as.data.frame(d$X)
-  fixed_folds <- if (fold_mode == "fixed") make_folds(n, n_folds) else NULL
+  fixed_folds <- if (!is.null(base_folds)) base_folds else
+    if (fold_mode == "fixed") make_folds(n, n_folds) else NULL
   point <- function(dd, folds = NULL) {
-    sudo_binary(dd, B = inner_B, n_folds = n_folds, folds = folds,
-                proper_boot = FALSE, ...)
+    if (is.null(folds) && !is.null(fold_builder)) {
+      folds <- fold_builder(dd, n_folds)
+    }
+    args <- c(list(d = dd, B = inner_B, n_folds = n_folds, folds = folds),
+              list(...))
+    if (identical(estimator, sudo_binary)) args$proper_boot <- FALSE
+    do.call(estimator, args)
   }
   fit0 <- point(d, fixed_folds)
-  boot <- vapply(seq_len(B_outer), function(b) {
-    idx <- sample.int(n, replace = TRUE)
+  extract_targets <- function(fit) {
+    value <- if (is.null(fit$targets)) c(theta = fit$theta) else fit$targets
+    stopifnot(is.numeric(value), length(value) >= 1L,
+              !is.null(names(value)), !anyDuplicated(names(value)))
+    value
+  }
+  extract_internal_se <- function(fit, target_names) {
+    value <- if (is.null(fit$target_internal_se)) c(theta = fit$se) else
+      fit$target_internal_se
+    out <- rep(NA_real_, length(target_names))
+    names(out) <- target_names
+    out[intersect(names(value), target_names)] <-
+      value[intersect(names(value), target_names)]
+    out
+  }
+  target0 <- extract_targets(fit0)
+  boot_list <- lapply(seq_len(B_outer), function(b) {
+    idx <- if (!is.null(bootstrap_indices)) bootstrap_indices[[b]] else
+      if (is.null(resample_indices)) sample.int(n, replace = TRUE) else
+        resample_indices(d, b)
+    stopifnot(length(idx) >= 2L, all(idx >= 1L), all(idx <= n))
+    boot_fold <- if (!is.null(bootstrap_folds)) bootstrap_folds[[b]] else
+      fixed_folds
     fit <- point(
       list(X = Xd[idx, , drop = FALSE], D = d$D[idx], Y = d$Y[idx]),
-      fixed_folds)
-    c(theta = fit$theta, internal_se = fit$se)
-  }, numeric(2))
-  th0 <- fit0$theta
-  thb <- boot["theta", ]
-  se <- sd(thb)
+      boot_fold)
+    targets <- extract_targets(fit)
+    if (!identical(names(targets), names(target0))) {
+      stop("bootstrap target names changed across pipeline fits")
+    }
+    list(
+      targets = targets,
+      internal_se = extract_internal_se(fit, names(target0)),
+      thresholds_ordered = if (is.null(fit$thresholds_ordered)) 1 else
+        fit$thresholds_ordered,
+      min_threshold_gap = if (is.null(fit$min_threshold_gap)) Inf else
+        fit$min_threshold_gap
+    )
+  })
+  boot_targets <- do.call(cbind, lapply(boot_list, `[[`, "targets"))
+  boot_internal <- do.call(cbind, lapply(boot_list, `[[`, "internal_se"))
+  target_se <- apply(boot_targets, 1L, sd)
+  target_center <- rowMeans(boot_targets)
+  target_internal0 <- extract_internal_se(fit0, names(target0))
   z <- qnorm(1 - (1 - level) / 2)
   a <- (1 - level) / 2
-  t_boot <- (thb - th0) / boot["internal_se", ]
+  target_results <- data.frame(
+    target = names(target0), estimate = as.numeric(target0),
+    se = as.numeric(target_se),
+    ci_lo = as.numeric(target0 - z * target_se),
+    ci_hi = as.numeric(target0 + z * target_se),
+    bootstrap_center = as.numeric(target_center),
+    internal_se = as.numeric(target_internal0), row.names = NULL
+  )
+  primary <- names(target0)[1]
+  th0 <- target0[[primary]]
+  thb <- boot_targets[primary, ]
+  se <- target_se[[primary]]
+  t_boot <- (thb - th0) / boot_internal[primary, ]
   t_quantile <- quantile(t_boot[is.finite(t_boot)], c(a, 1 - a))
-  list(theta = th0, se = se, ci_lo = th0 - z * se, ci_hi = th0 + z * se,
+  out <- list(theta = th0, se = se, ci_lo = th0 - z * se, ci_hi = th0 + z * se,
        ci_lo_pct = unname(quantile(thb, a)),
        ci_hi_pct = unname(quantile(thb, 1 - a)),
        ci_lo_stud = th0 - unname(t_quantile[2]) * fit0$se,
        ci_hi_stud = th0 - unname(t_quantile[1]) * fit0$se,
-       internal_se = fit0$se, bootstrap_center = mean(thb),
+       internal_se = target_internal0[[primary]], bootstrap_center = mean(thb),
+       targets = target0, target_se = target_se,
+       target_results = target_results, bootstrap_targets = boot_targets,
        B_outer = B_outer, fold_mode = fold_mode)
+  if (!is.null(fit0$direct_theta)) out$direct_theta <- fit0$direct_theta
+  out$all_boot_thresholds_ordered <-
+    as.numeric(all(vapply(boot_list, `[[`, numeric(1),
+                          "thresholds_ordered") == 1))
+  out$min_boot_threshold_gap <- min(vapply(
+    boot_list, `[[`, numeric(1), "min_threshold_gap"
+  ))
+  diagnostics <- setdiff(names(fit0), c(names(out), "ci_lo", "ci_hi",
+                                        "theta", "se"))
+  for (name in diagnostics) {
+    value <- fit0[[name]]
+    if (is.numeric(value) && length(value) == 1L) out[[name]] <- value
+  }
+  out
 }
