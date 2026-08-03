@@ -18,123 +18,115 @@ author:
 authorcols: true
 date: today
 abstract: |
-  Ordinary partially linear regression applied to observed discrete labels generally targets the wrong scale. Tailored orthogonal scores can recover a chosen link-scale parameter, but each outcome law requires its own derivation. We introduce SUDO (Surrogate-Assisted Double Machine Learning), a common completion-and-projection interface for discrete conditional distributions with a scalar additive treatment index. Given a fitted conditional CDF, SUDO draws a randomized probability-integral transform inside the observed outcome's CDF jump, maps it through a mean-zero reference law, adds the fitted index, and applies ordinary partialling-out. Binary outcomes validate the construction rather than establish an advantage: under a cloglog truth, SUDO, a tailored cloglog orthogonal score, and the direct cloglog coefficient have indistinguishable bias. The principal established application is ordinal, where we identify no published orthogonal-score analogue for the latent proportional-odds coefficient. In parametric designs, proper multiple-imputation draws are needed for near-nominal coverage. For structured flexible imputation models, a full-pipeline bootstrap attains nominal coverage in the validated binary designs. We show that SUDO equals an index-only projection plus an outcome-informed correction; the familiar coefficient-plus-correction identity is a special case. A randomized-CDF proposition extends the interface to count laws, and a six-cell oracle experiment validates both analytic and randomized count completion. Fitted count learners and the dependent-data bikeshare analysis remain unpromoted. We illustrate the validated ordinal method on wine quality.
+  Regression on a discrete label generally targets the wrong scale for a
+  cumulative-link or log-mean effect. Surrogate-Assisted Double Machine
+  Learning (SUDO) first completes each observed category to a continuous
+  surrogate using a fitted conditional CDF, then applies ordinary
+  partialling-out. If the fitted distribution is correct, randomized
+  probability-integral-transform completion restores the scalar treatment
+  index in conditional mean. Repeated completions with proper
+  multiple-imputation draws provide inference for parametric models; a
+  full-pipeline bootstrap serves the same role for flexible learners.
+  Simulations show nominal coverage in the validated binary and ordinal
+  designs and also expose the method's main limitation: error in the
+  imputation distribution is not removed by DML orthogonality. SUDO matches,
+  rather than dominates, tailored binary estimators. Its clearest use is for
+  ordinal outcomes, where the same construction targets a latent
+  proportional-odds coefficient without a new outcome-specific score. A wine
+  quality application illustrates the method. An oracle experiment validates
+  the count completion, while fitted count learners remain unpromoted.
 format:
   arxiv-pdf:
     keep-tex: false
 bibliography: references.bib
+header-includes:
+  - \usepackage{float}
+  - \usepackage{placeins}
 ---
 
 # Introduction
 
-Many outcomes that scientists want causal effects for are discrete.
-A patient relapses or not; a wine is rated on a five- or ten-point scale;
-a survey respondent is dissatisfied, neutral, or satisfied; a transit system
-records a count of trips. For a
-*continuous* outcome, Double Machine Learning [DML, @chernozhukov2018]
-provides a now-standard route to a causal effect under flexible,
-high-dimensional adjustment. It predicts the outcome and treatment from the
-covariates with machine-learning (ML) models, removes both predictions, and
-reads the effect from a residual-on-residual regression. This
-Frisch-Waugh-Lovell (FWL) orthogonalization allows flexible nuisance
-predictions because, under standard convergence-rate conditions, the
-Neyman-orthogonal score is insensitive to their first-order estimation error
-[@chernozhukov2018].
+Many outcomes are discrete: relapse is binary, survey responses are ordinal,
+and trips are counts. Double Machine Learning [DML, @chernozhukov2018] is
+well suited to a continuous partially linear outcome because it removes
+flexibly estimated covariate effects and reads the treatment effect from a
+residual-on-residual regression. Applying the same calculation to a discrete
+label is easy, but it usually targets a residualized contrast in
+$E[Y\mid D,X]$. It does not recover a cumulative-link coefficient or a log
+conditional-mean effect. The problem is the outcome scale.
 
-That partially linear machinery is built for an observed continuous outcome.
-Running it unchanged on a discrete label is computationally possible but
-generally targets a residualized contrast in $E[Y\mid D,X]$. It does not
-recover a latent cumulative-link coefficient or a log conditional-mean
-coefficient merely because those parameters exist. This is a scale mismatch,
-not a claim that DML cannot handle discrete outcomes. Tailored orthogonal
-scores can target probability, distribution, or link-scale parameters when
-they are derived for the chosen law.
+This paper takes a simple route around that mismatch: complete the observed
+category to a continuous surrogate on the target scale, then run the usual
+partialling-out calculation. The completion uses the fitted conditional CDF
+to draw within the jump corresponding to the observed category. Under a
+correct distribution, that randomized probability-integral transform has a
+known continuous reference law. Adding the fitted scalar index produces a
+surrogate whose conditional mean is the desired partially linear index.
 
-For binary outcomes, the logistic partially linear model of @liu2021lplr
-provides one tailored remedy and has an implementation in DoubleML. The same
-score-building strategy can be repeated for other links. Stage 12 below does
-so for cloglog and finds no binary estimation advantage for SUDO over the
-correct tailored score or the correctly specified direct coefficient. We
-identify no published analogue for an ordinal latent proportional-odds
-coefficient. Ordinal and count outcomes, together with a common software
-interface across laws, are therefore the motivating scope. The absence of a
-published ordinal analogue is not a claim that one cannot be developed.
-Published Neyman-orthogonal estimators also cover Poisson log-mean
-coefficients [@drukker2022]. The fitted-learner count validation code
-therefore includes a tailored Poisson one-step score as a comparator. SUDO's
-count contribution is the common distribution-completion interface, not the
-existence of count inference.
+The construction repurposes the surrogate-variable approach of @liu2018,
+originally developed for residual diagnostics in ordinal regression, as an
+estimation device. @cheng2021 extend that approach to unordered
+discrete-choice models with vector utilities, while @greenwell2018 provide
+its binary and ordinal implementation in the `sure` package. SUDO stays in
+the scalar-index setting: a distribution learner supplies a pointwise index
+and conditional CDF, and SUDO supplies the completion, partialling-out, and
+uncertainty calculation. Binary, ordinal, and count laws then share one
+estimator interface.
 
-Independently, @liu2018 and @cheng2021 developed *surrogate residuals* as a
-diagnostic device for discrete-choice models. Grounded in random utility
-theory [@mcfadden1974], a surrogate maps an observed category to a draw
-from the conditional distribution of its latent utility. The result is a
-continuous, homoscedastic residual with a known reference distribution
-[@greenwell2018]. We repurpose that construction as an *estimation* device.
-Substituting a surrogate $S$ for the missing continuous-scale outcome turns
-the discrete problem into one on which the FWL recipe runs unchanged. The
-surrogate remains a draw rather than an observed outcome, so one completion
-is not enough. We instead treat repeated completions as multiple
-imputations and pool them with Rubin's rules [@rubin1987]. In the parametric
-designs that compare draw schemes, imputing from the model's *posterior
-predictive* distribution rather than a plug-in separates near-nominal
-coverage from clear under-coverage.
+That uniformity does not make SUDO uniformly better. Tailored orthogonal
+scores exist for logistic binary models [@liu2021lplr] and Poisson log-mean
+effects [@drukker2022]. In our binary comparisons, SUDO matches the correct
+tailored estimator and direct coefficient rather than improving on them. The
+main practical opening is ordinal regression, where we identify no published
+orthogonal-score analogue for the latent proportional-odds coefficient.
 
-**Contributions.**
+The paper makes three points. First, randomized-CDF completion turns a broad
+class of discrete outcomes into an ordinary partially linear problem.
+Second, inference must propagate completion and imputation-model uncertainty:
+proper multiple-imputation draws do so for parametric models, while a
+full-pipeline bootstrap does so for validated flexible learners. Third, DML
+orthogonality protects the adjustment regressions but not the distribution
+used to create the surrogate. Simulation therefore remains essential when a
+new imputation learner is introduced. We validate the binary and ordinal
+implementations, illustrate the ordinal method with wine quality, and report
+an oracle count bridge without promoting the fitted count analysis.
 
-1. A uniform randomized-CDF completion interface for discrete conditional
-   distributions with a scalar additive treatment index. It covers binary
-   and ordinal cumulative links and, at the method level, count log-mean
-   models.
-2. The finding that only the proper multiple-imputation draw scheme attained
-   nominal coverage in the designs we study, quantified against naive and
-   improper alternatives.
-3. A closed-form analysis of how imputation-model error propagates to the
-   effect, revealing a *first-order* sensitivity absent from standard DML,
-   confirmed by a direct perturbation experiment.
-4. Design-specific evidence for nominal coverage with structured flexible
-   imputation models, using a partially-linear structure and a full-pipeline
-   bootstrap, together with a proved deterministic-series reference learner.
-5. Direct comparisons showing no binary superiority claim is warranted, and
-   the coefficient-plus-correction identity that explains what completion
-   changes relative to reading the structured model coefficient.
-6. An ordinal wine-quality application and a count oracle bridge. Flexible
-   ordinal, fitted-count, and dependent-data bikeshare analyses remain behind
-   prespecified R promotion gates.
-
-# Setup and estimand
+# The surrogate idea
 
 Let $D$ be a treatment, $X \in \mathbb{R}^p$ covariates, and $Y$ a
 discrete outcome with conditional CDF $G_0(y\mid D,X)$. The true
 distribution has a scalar additive index
 $$\eta_0(D,X)=\theta_0D+g_0(X).$$ {#eq-index}
 For binary and ordinal outcomes this is a latent-utility index: binary
-$Y = \mathbf{1}\{U > 0\}$, or ordinal,
-$Y = j \iff \kappa_{j-1} < U \le \kappa_j$ for thresholds
-$-\infty = \kappa_0 < \kappa_1 < \dots < \kappa_{J-1} < \kappa_J = \infty$
-(we write $\kappa$ rather than $c$ to keep the thresholds distinct from the
-pass-through factor $c(\cdot)$ of @sec-theory). The latent utility
-follows a partially linear model
+$Y = \mathbf{1}\{Z > 0\}$, or ordinal,
+$Y = j \iff \kappa_{j-1} < Z \le \kappa_j$ for thresholds
+$-\infty = \kappa_0 < \kappa_1 < \dots < \kappa_{J-1} < \kappa_J = \infty$.
+The latent utility follows a partially linear model
 
-$$U = \theta_0 D + g_0(X) + \varepsilon, \qquad
+$$Z = \theta_0 D + g_0(X) + \varepsilon, \qquad
 \varepsilon \mid D,X \sim F$$ {#eq-latent}
 with $g_0$ an arbitrary nuisance function and $F$ a known error distribution
-(logistic, giving proportional-odds; extreme-value, giving
-complementary-log-log; etc.). The target $\theta_0$ is the treatment effect
-on the latent-utility scale, the same quantity a correctly specified
-cumulative-link model targets, but with $g_0$ left nonparametric. It is not
-the probability-scale average treatment effect; the two answer different
-questions and should not be compared against a common truth. Because $F$
-fixes the variance of $\varepsilon$, this scale is set by the link rather
-than estimated, which is what gives $\theta_0$ its familiar reading: under
-the logistic link a one-unit change in $D$ shifts the cumulative log-odds
-of $Y$ by $\theta_0$, so $\exp(\theta_0)$ is a proportional-odds ratio.
+(logistic for proportional odds, extreme-value for complementary log-log,
+and so on). The target $\theta_0$ is the treatment effect on this latent
+scale, with $g_0$ left nonparametric. It is not a probability-scale average
+treatment effect. Under a logistic link, $\exp(\theta_0)$ is a
+proportional-odds ratio.
 For Poisson or negative-binomial counts we use
 $E[Y\mid D,X]=\exp\{\eta_0(D,X)\}$, making $\theta_0$ a log conditional-mean
-effect and $\exp(\theta_0)$ a conditional rate ratio. It is not a latent
-ordinal rank.
+effect and $\exp(\theta_0)$ a conditional rate ratio.
 
-Four assumptions identify $\theta_0$.
+This notation matches the surrogate literature up to sign convention.
+@liu2018 write the ordinal latent variable as
+$Z=-f(X,\beta)+\varepsilon$, draw the surrogate from
+$S\mid(Y,X)\sim Z\mid(Y,X)$, and define the surrogate residual
+$R^S=S-E_0(S\mid X)$. Here $\eta=-f$, treatment is included in the index,
+and the reference error is centered, so the corresponding correct-model
+residual is $R^S=S-\eta(D,X)$. SUDO uses the surrogate $S$ as an outcome for
+estimation rather than using $R^S$ only for diagnostics. The vector surrogate
+of @cheng2021 is broader, but is not required for the scalar estimands studied
+here.
+
+Identification requires four conditions.
 
 1. *Selection on observables.* No unobserved confounder acts beyond $X$.
    Together with the conditional location-family statement in @eq-latent,
@@ -143,84 +135,52 @@ Four assumptions identify $\theta_0$.
 2. *A constant index-scale effect.* The partially linear form in @eq-index
    makes $\theta_0$ a single number rather than a function of $X$.
 3. *A correctly specified discrete conditional distribution.* Completion
-   uses the entire fitted CDF jump. For cumulative links this includes the
-   error law and thresholds; for counts it includes the count family and any
-   dispersion parameter. The surrogate-residual
-   diagnostic monitors the fitted specification, of which this is one part,
-   and the propagation analysis shows that the estimate is especially
-   sensitive to its failure.
+   uses the entire fitted CDF jump, including the link and thresholds for
+   cumulative models or the family and dispersion for counts.
 4. *Overlap.* Treatment retains support after adjustment, so its residual is
    not annihilated.
 
-The first and fourth assumptions are standard causal conditions, made
-explicit through the directed acyclic graphs (DAGs) for the simulations and
-application. The second and third are modeling choices shared with any
-structured distributional analysis.
+The first and fourth are standard causal conditions. The second and third
+are modeling choices shared with any structured distributional analysis.
 
-The inline example below and every simulation use the same causal DAG
-(@fig-sim-dag). Their functional forms, treatment type, error law, and
-cutpoints vary, but their causal arrows do not. The exogenous latent error
-affects the utility but is independent of treatment and covariates.
+## From a category to a continuous outcome
 
-```{mermaid}
-%%| label: fig-sim-dag
-%%| fig-width: 4.3
-%%| fig-cap: "Causal DAG shared by the inline example and all simulation data-generating processes. The covariates may be a vector, and the observed category is a deterministic coarsening of the latent utility."
-flowchart LR
-  X[covariates X] --> D[treatment D]
-  X --> U[latent utility U]
-  D --> U
-  E((latent error)):::u --> U
-  U --> Y[observed category Y]
-  classDef u fill:#eee,stroke-dasharray:4 3;
-```
-
-# Background: FWL, DML, and surrogate residuals
-
-The FWL theorem states that, in a linear model, the coefficient on $D$
-equals the coefficient from regressing the outcome residual on the treatment
-residual after partialling $X$ out of both. DML makes this identity useful
-with high-dimensional covariates by combining flexible estimates of the two
-partialling regressions, $K$-fold cross-fitting, and an orthogonal score
-[@chernozhukov2018].
-
-Applying that calculation directly to a discrete label targets a different
-quantity. A raw count regression, for example, does not become a log-rate
-regression through residualization. SUDO instead uses randomized completion
-to restore the index scale before FWL is applied.
-
-# Surrogate FWL: the idea in its simplest form
+FWL estimates a treatment coefficient by regressing an outcome residual on a
+treatment residual after removing $X$ from both. DML combines that identity
+with cross-fitting and flexible nuisance regressions [@chernozhukov2018].
+SUDO changes only the outcome supplied to this calculation.
 
 Fit a structured distributional model of $Y$ on $(D,X)$. It must return the
 scalar index $\hat\eta_i$, the fitted CDF immediately below and at the
 observed outcome, and any global distribution parameters. Draw
 $$
-U_i\mid Y_i,D_i,X_i\sim
+V_i\mid Y_i,D_i,X_i\sim
 \operatorname{Unif}\{\hat G(Y_i-1\mid D_i,X_i),
                       \hat G(Y_i\mid D_i,X_i)\},
-\qquad S_i=\hat\eta_i+H^{-1}(U_i),
+\qquad S_i=\hat\eta_i+H^{-1}(V_i),
 $$ {#eq-randomized-pit}
 where $H$ is a continuous mean-zero reference law. For binary and ordinal
-cumulative links, $H$ is the centered version of the link's latent error law,
-reproducing truncated latent-utility completion up to an intercept shift
-[@liu2018; @cheng2021]. For counts we use standard
-normal $H$, the randomized-quantile-residual convention of @dunn1996. The
-reference law changes the completion variance but not the target.
+cumulative links, we set $H$ to the centered link-error law. This gives the
+truncated latent-variable surrogate of @liu2018, expressed through its CDF
+jump, up to the corresponding intercept centering. For counts we use standard
+normal $H$, following the randomized-quantile-residual convention of
+@dunn1996. The reference law changes the completion variance but not the
+target.
 
 For the normal count reference, the completion has an analytic
 Rao-Blackwell form. With $a=\hat G(Y-1\mid D,X)$,
 $b=\hat G(Y\mid D,X)$, and standard-normal density $\phi$,
 $$
-E\{\Phi^{-1}(U)\mid Y,D,X\}
+E\{\Phi^{-1}(V)\mid Y,D,X\}
 =\frac{\phi\{\Phi^{-1}(a)\}-\phi\{\Phi^{-1}(b)\}}{b-a},
 $$
 with the continuous limiting value for a zero-width numerical jump. The
 count stages report this analytic completion beside the $B=25$ randomized
 completion.
 
-**Proposition 1 (randomized-CDF completion).** *If $G=G_0$ is the correct
-conditional CDF and $H$ is continuous with
-$E\{H^{-1}(U)\}=0$ for $U\sim\operatorname{Unif}(0,1)$, then the completion
+**Proposition 1 (randomized-CDF completion).** *If $G=G_0$ and
+$\eta=\eta_0$, and if $H$ is continuous with
+$E\{H^{-1}(V)\}=0$ for $V\sim\operatorname{Unif}(0,1)$, then the completion
 in @eq-randomized-pit satisfies $E[S\mid D,X]=\eta_0(D,X)$. Consequently,*
 
 $$S = \theta_0 D + g_0(X) + \eta, \qquad E[\eta \mid D, X] = 0$$
@@ -229,22 +189,21 @@ $$S = \theta_0 D + g_0(X) + \eta, \qquad E[\eta \mid D, X] = 0$$
 
 *Proof.* Conditional on $(D,X)$, each discrete outcome selects one disjoint
 CDF jump with probability equal to that jump's width. Uniform randomization
-inside the selected jump therefore makes $U\mid D,X$ uniform on $(0,1)$.
-The reference quantile has conditional mean zero, leaving the fitted index.
+inside the selected jump therefore makes $V\mid D,X$ uniform on $(0,1)$.
+The reference quantile has conditional mean zero, leaving $\eta_0(D,X)$.
 $\square$
 
-This is the exact case. With an estimated distribution the equality holds only
-asymptotically under consistent estimation, and approximately otherwise;
-the propagation analysis below makes the residual error precise. The
-demonstration that follows estimates the index by maximum likelihood, so it
-illustrates the corresponding large-sample regime.
+For cumulative links, this is the conditioning identity behind the
+surrogate-variable results of @liu2018 and @cheng2021. The estimation step is
+to use $S$, rather than only its diagnostic residual, as the outcome in FWL
+or DML.
 
-The following self-contained example uses base R to draw a binary outcome
-from a logistic latent model, fit the imputation model, and complete the
-outcome to a surrogate. It compares three estimates of $\theta_0$: the
-logistic-regression
-coefficient on the treatment, the FWL estimate on the *true* (unobserved)
-utility (the oracle), and the FWL estimate on the *surrogate* completion.
+With an estimated distribution, the equality is asymptotic under consistency
+and approximate otherwise. This limitation matters because the imputation
+model is not protected by DML orthogonality.
+
+The following base R example compares the fitted logistic coefficient, FWL
+on the unobserved utility, and FWL on one surrogate completion.
 
 ```{r}
 #| label: surrogate-fwl-demo
@@ -253,9 +212,9 @@ set.seed(1)
 n <- 40000
 theta <- 1.5
 X <- rnorm(n)
-D <- rbinom(n, 1, plogis(0.8 * X))  # treatment depends on a covariate
-U <- theta * D + X + rlogis(n)      # latent utility, never observed
-Y <- as.integer(U > 0)              # observed binary label
+D <- rbinom(n, 1, plogis(0.8 * X))
+Z <- theta * D + X + rlogis(n)
+Y <- as.integer(Z > 0)
 
 imputation_fit <- glm(Y ~ D + X, binomial)
 index_hat <- predict(imputation_fit)
@@ -276,8 +235,8 @@ fwl <- function(outcome) {
 }
 round(c(
   glm = unname(coef(imputation_fit)["D"]),
-  oracle = fwl(U),              # FWL on the true utility
-  surrogate = fwl(surrogate)    # FWL on the completed utility
+  oracle = fwl(Z),
+  surrogate = fwl(surrogate)
 ), 3)
 ```
 
@@ -289,7 +248,7 @@ intervals gives the ordinal construction. The remainder of the paper adds
 two elements to this basic estimator: machine-learning partialling and
 inference that accounts for the uncertainty hidden by a single completion.
 
-# Surrogate-assisted double machine learning
+# Estimation and inference
 
 **The estimator.** Cross-fit the two adjustment nuisances
 $\hat m(X) \approx E[D \mid X]$ and $\hat\ell(X) \approx E[S \mid X]$, and
@@ -299,64 +258,37 @@ $$\hat\theta = \frac{\sum_i (S_i - \hat\ell(X_i))(D_i - \hat m(X_i))}
 {\sum_i (D_i - \hat m(X_i))^2}$$ {#eq-theta}
 
 The $\hat\ell$ regression uses $X$ only: the index carried $D$'s signal
-into $S$, and partialling on $X$ alone strips it back out so the residual
-regression isolates $\theta_0$. The score
+into $S$, and partialling on $X$ alone isolates $\theta_0$. The score
 $\varphi = (S - \ell(X) - \theta(D - m(X)))(D - m(X))$ is Neyman-orthogonal in
 $(\ell, m)$: its derivatives in both nuisance directions vanish by the
 tower property, so first-order error in $\hat\ell$ or $\hat m$ does not bias
-$\hat\theta$. This protection covers the two *adjustment*
-nuisances but not the imputation model that produced $\hat V$; the
-next section analyzes the difference.
+$\hat\theta$. This protection covers the two adjustment nuisances, not the
+imputation model that produced the surrogate.
 
 **Proper multiple-imputation inference.** A single completion understates
 uncertainty, so we draw $B$ surrogates and pool with Rubin's rules
 [@rubin1987]: the estimate is $\bar\theta = B^{-1}\sum_b \hat\theta^{(b)}$
-and the total variance is $T = \bar W + (1 + 1/B) B_{\!*}$, the mean
-within-draw sandwich variance plus the inflated between-draw variance, with
-a Barnard-Rubin small-sample $t$ reference [@barnard1999]. What matters is
-*how* the draws differ. Each surrogate is centered at an estimated index
-$\hat V = x'\hat\beta$; that estimate carries sampling error, and reusing
-one fitted $\hat\beta$ across all draws (an *improper* draw) leaves the
-shared error invisible to the between-draw variance, so $T$ comes up short.
+and the total variance is $T = \bar W + (1 + 1/B) B_{\!*}$, with a
+Barnard-Rubin small-sample $t$ reference [@barnard1999]. Reusing one fitted
+$\hat\beta$ across all completions leaves its shared estimation error
+invisible to the between-draw variance.
 A *proper* draw redraws the imputation model's parameters,
 $\beta^{(b)} \sim N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$
-(thresholds included in the ordinal case), before each completion, the
-large-sample normal form of Rubin's posterior-predictive requirement. @tbl-ladder shows the three
-schemes moving coverage from 0.80 (naive) to 0.92 (improper) to 0.96-0.97
-(proper).
+(thresholds included for ordinal outcomes), before each completion. This is
+the large-sample normal form of a proper posterior-predictive draw. It
+accounts for sampling noise, surrogate randomness, and imputation-model
+uncertainty. @tbl-ladder shows why all three matter.
 
-$T$ must account for three things that vary from draw to draw: the sampling
-noise in $\hat\theta$ once a completion is fixed (the within-draw $\bar W$),
-the surrogate randomness in $S$, and the uncertainty in the imputation model
-itself. Improper draws discard the last of these.
-
-Under standard regularity, the normal parameter draw above describes the
-same large-sample limit as the sampling distribution of $\hat\beta$, its
-flat-prior posterior, and a parametric bootstrap. A proper draw is therefore
-the large-sample form of a parametric bootstrap of the imputation model,
-obtained from its covariance rather than by refitting. This approach
-requires a model that reports a usable covariance, a requirement that fails
-for the black-box learners considered below.
-
-**Ordinal outcomes and the link.** The ordinal calculation is unchanged once a
-cumulative-link model supplies the index and thresholds; because the
-thresholds are parameters too, the proper draw perturbs them jointly with
-the coefficients, which is why we fit with a model whose covariance covers
-them. The error distribution $F$ remains an assumption. Under a correctly
-specified model the surrogate residual $R_S = S - \hat V$, not to be confused
-with the treatment residual $R$ used throughout the theory, has constant
-conditional mean and variance [@liu2018]. A smooth of
-$(R_S - \mu_F)^2$ on $X$, where $\mu_F$ is the reference mean of the assumed
-error law and the residuals come from an independent draw stream, can
-therefore flag a misspecified fit through second-moment drift that mean-based
-checks miss. Centering at $\mu_F$ matters because it is not zero for every
-link: it is $-\gamma$ for the Gumbel-min law behind an ordinal cloglog fit.
+For ordinal outcomes, thresholds are parameters too and must be perturbed
+jointly with the coefficients. Surrogate-residual mean and variance checks
+provide a diagnostic for the assumed link and mean structure [@liu2018], but
+they do not replace target-level validation.
 
 ## What completion adds to the fitted index
 
-Let $R=D-m_0(X)$ and let a fitted distribution learner return the pointwise
+Let $R_D=D-m_0(X)$ and let a fitted distribution learner return the pointwise
 index $\hat\eta(D,X)$ without requiring a treatment coefficient. Write
-$\mu_Y=E\{H^{-1}(U)\mid Y,D,X,\hat G\}$ for the conditional mean reference
+$\mu_Y=E\{H^{-1}(V)\mid Y,D,X,\hat G\}$ for the conditional mean reference
 correction. The randomized estimator converges to the same completion mean
 as its Rao-Blackwellized form.
 
@@ -364,14 +296,14 @@ as its Rao-Blackwellized form.
 treatment nuisance, the population completion target is*
 $$
 \theta_{\mathrm{SUDO}}
-=\frac{E\{R\hat\eta(D,X)\}}{E(R^2)}
- +\frac{E(R\mu_Y)}{E(R^2)}.
+=\frac{E\{R_D\hat\eta(D,X)\}}{E(R_D^2)}
+ +\frac{E(R_D\mu_Y)}{E(R_D^2)}.
 $$ {#eq-coefficient-correction}
 
 *Proof.* Substitute $S=\hat\eta(D,X)+\mu_Y$ into the population FWL
 numerator and separate its two terms. If
 $\hat\eta(D,X)=\hat\alpha D+\hat f(X)$, then
-$E\{R\hat f(X)\}=0$ and $E(RD)=E(R^2)$, so the first term reduces to
+$E\{R_D\hat f(X)\}=0$ and $E(R_D D)=E(R_D^2)$, so the first term reduces to
 $\hat\alpha$. $\square$
 
 SUDO therefore projects the fitted index onto the residualized treatment and
@@ -381,47 +313,34 @@ treatment regularization shrinks the index projection, hurt through
 covariate-direction error, or vanish. It is not a generic improvement over a
 direct coefficient.
 For binary logit, the correction reduces to an entropy-weighted residual
-moment. Stage 9 verifies @eq-coefficient-correction numerically.
+moment.
 
-# How imputation-model error propagates
+## Where orthogonality stops
 
 The orthogonality established above protects $\hat\theta$ from error in the
 adjustment nuisances but says nothing about the imputation model, whose
 error is baked into the completed data $S$ rather than differenced away.
-That channel distinguishes SUDO from standard DML. The imputation model,
-unlike the two adjustment nuisances, sits outside the orthogonality
-guarantee, so the method is DML-assisted rather than fully orthogonal; its
-overall score is not insensitive to every estimated component.
+The imputation model sits outside the orthogonality guarantee because its
+error is built into the outcome supplied to DML.
 
-Here and below, a *black-box imputation model* means a flexible
+Here, a *black-box imputation model* means a flexible
 distributional learner that supplies a pointwise scalar index and conditional
 CDF. It need not parameterize or expose a treatment coefficient. The count
-validation uses interaction constraints that isolate $D$ from the joint $X$
-block, preventing treatment-by-covariate interactions while leaving the
-treatment contribution coefficientless. An arbitrary probability vector
-without a scalar index on the target scale remains outside scope.
+validation isolates $D$ from the joint $X$ interaction block. An arbitrary
+probability vector without a scalar index on the target scale remains outside
+scope. Flexible imputation models are cross-fit so each supplied index is an
+out-of-fold prediction.
 
-The argument requires the fitted index to be effectively free of an
-observation's own outcome. Two estimation strategies provide that
-separation. A *flexible* imputation model is cross-fit, making $\hat V_i$ an
-out-of-fold prediction that is independent of $Y_i$ given $(D, X)$. A
-*parametric* model is fit once on the full sample; its $\hat V_i$ depends on
-$Y_i$ only at order $1/n$, which is asymptotically negligible. In our
-experiments, cross-fitting the parametric model was harmful: per-fold index
-noise inflated the between-draw variance, raising coverage to 1.00 while the
-mean standard error reached 2.3 times the true standard deviation. The
-binary machine-learning design therefore uses a cross-fit `gam` imputation
-model, whereas the ordinal designs and wine application fit `clm` once.
-
-Either way $\hat V$ is fixed with respect to the completion, while
+Either way $\hat\eta$ is fixed with respect to the completion, while
 $Y \mid D, X$ is generated by the truth. Since
-$S$ is $\hat V$ plus truncated noise,
+$S$ is $\hat\eta$ plus truncated noise,
 
-$$E[S \mid D, X] = \psi(\hat V, \eta), \quad
+$$E[S \mid D, X] = \psi(\hat\eta, \eta), \quad
 \psi(v, e) = v + F(e)\,\mu_+(v) + (1 - F(e))\,\mu_-(v)$$ {#eq-ess}
 
 with $\mu_\pm$ the truncated-noise mean corrections. The correctly centered
-draw is exact, $\psi(e, e) = e$ (recovering Theorem 1 of @cheng2021),
+draw is exact, $\psi(e, e) = e$, the correct-model surrogate identity in
+@liu2018 and @cheng2021,
 but index error passes through with a factor strictly below one,
 
 $$c(e) = \left.\frac{\partial \psi}{\partial v}\right|_{v=e}
@@ -429,39 +348,22 @@ $$c(e) = \left.\frac{\partial \psi}{\partial v}\right|_{v=e}
 
 Read $c$ as the fraction of index error that survives the truncation. With
 no truncation the surrogate would be index plus noise and its mean would move
-one-for-one with $\hat V$, giving $c = 1$; the observed category drags it
+one-for-one with $\hat\eta$, giving $c = 1$; the observed category drags it
 back, and $c$ is what is left.
 
-Under a logistic link $c$ rises from $0.31$ at $e = 0$ to $1$ in the tails
-(@fig-passthrough). The value at the origin is exactly $1 - \log 2$, because
-for the logit
+Under a logistic link, $c$ rises from $1-\log 2=0.31$ at $e=0$ toward one
+in the tails (@fig-passthrough). In fact,
 $$c(e) = 1 - H\bigl(F(e)\bigr), \qquad H(p) = -p\log p - (1-p)\log(1-p),$$ {#eq-centropy}
-so the self-correction is precisely the entropy of the outcome. This identity
-summarizes the mechanism. At $p = 1/2$, the label is maximally uncertain, so
-observing it is most informative about where $U$ fell and the correction is
-largest. As $p \to 1$, the label was already predictable, adds little
-information beyond $\hat V$, and provides almost no correction. Strong
-effects are therefore difficult for the same reason that an ordinal
-category spanning many error standard deviations is difficult: in both
-settings, the observed category conveys little additional information about
-$U$.
-
-The density in @eq-ce is evaluated at $-e$, which matters for an asymmetric
-$F$ such as the extreme-value link; writing $f(e)$ is a shorthand valid only
-when $F$ is symmetric. @sec-theory gives the general-$J$ form of both
-@eq-ess and @eq-ce, where the ordinal thresholds contribute their own
-derivative block. For the well-placed partitions studied here, adding
-categories lowers the pass-through at $e = 0$: from $0.307$ for binary to
-$0.157$ and $0.090$ for the displayed three- and four-category
-configurations. Category count alone is not monotone, however; widely spaced
-thresholds can instead drive the pass-through toward one.
+so self-correction equals outcome entropy. An uncertain label sharply
+constrains the latent utility and corrects more of the fitted-index error. A
+nearly deterministic label adds little information and corrects almost none.
 
 ```{r}
 #| label: fig-passthrough
 #| echo: false
 #| fig-width: 5
 #| fig-height: 2.6
-#| fig-cap: "Pass-through factor $c(e)$ under a logistic link. Error in the imputation index reaches $\\hat\\theta$ multiplied by $c(e)$. The factor rises from about 0.31 at $e=0$ toward 1 as the signal grows because truncation self-corrects when $Y$ is informative but not when $Y$ is nearly deterministic. Averaging over the index distribution gives the $\\bar c_1$ reported in the text."
+#| fig-cap: "Fraction of fitted-index error that survives completion under a logistic link. An informative label supplies the strongest correction near the center; the correction fades as the label becomes nearly deterministic."
 mu_plus <- function(index) {
   integrate(function(error) error * dlogis(error), -index, Inf)$value /
     plogis(index)
@@ -491,177 +393,61 @@ text(
 )
 ```
 
-Linearizing $\psi$ around the truth, the bias of $\hat\theta$ is
-approximately $\bar c_1\, \delta_D$ plus a covariate-direction leak given
-below, where $\delta_D$ is the imputation model's error in its effective
-treatment coefficient and $\bar c_1 = E[w\, c(\theta_0 + g)] / E[w]$,
-$w = m(1-m)$.
-
-**Self-correction weakens with signal.** Because $Y$ comes from the truth,
-truncation pulls $S$ toward the correct interval, giving $c < 1$. As the
-signal grows and $Y$ becomes nearly deterministic, however, it adds no
-information beyond $\hat V$ and $c \to 1$. For a *fixed* index
-misspecification, this loss of self-correction is what makes bias hardest to
-control at strong effect sizes: less of the index error is damped away. It is
-not the whole story when the imputation model is correctly specified, where
-@sec-theory shows the variance components themselves move against us. Nor
-does it license the reverse reading, since $c \to 1$ is also the regime in
-which the linearization of $\psi$ is most accurate.
-
-**Covariate-direction error can survive partialling.** The opposite might
-seem natural because residualized treatment is orthogonal to any function of
-$X$. To see why it fails here, split the imputation
-model's index error into a treatment part and a covariate part,
-$\hat V - \eta = \delta_D D + \delta_X(X)$. Partialling-out regresses on
-$R = D - m_0(X)$, and $E[R \mid X] = 0$ annihilates any function of $X$, so
-$\delta_X$ ought to wash out. It does not, because $S$ is nonlinear in
-$\hat V$: linearizing multiplies the index error by $c(\eta)$, and $\eta$
-depends on $D$, so $\delta_X$ arrives multiplied by something that itself
-varies with treatment and therefore survives the projection. For binary $D$,
-writing $\eta_d = \theta_0 d + g_0(X)$ and $w = \mathrm{Var}(D \mid X)$, the
-surviving term is
-$$\text{covariate-direction leak} \;=\;
-\frac{E\bigl[w\,\bigl(c(\eta_1) - c(\eta_0)\bigr)\,\delta_X\bigr]}{E[w]} .$$ {#eq-leak}
-Proposition A4 gives the exact path-integrated version of this first-order
-form and a weighted norm bound. The leak is governed by *how differently
-the truncation damps the two treatment arms*. Were the two path-averaged
-factors the same, it would vanish exactly and the naive argument would be
-right.
-
-The leak vanishes when the imputation model can represent $g_0$, which is
-why designs with every model correctly specified show no
-covariate-direction bias. When it cannot, two channels can appear.
-Giving $g_0$ an $X_1X_2$ interaction that an additive logistic imputation
-model cannot express produces a bias of 5 to 6% of $\theta_0$ and coverage
-of 0.75 at strong signal. Although treatment is constrained to enter
-linearly, omitted logistic heterogeneity shifts its pseudo-true coefficient,
-so this experiment is not a pure $\delta_D=0$ case. The population
-decomposition in @sec-numverify separates the common covariate leak from
-that induced treatment-direction error. Refitting the same design with an
-imputation model that admits the interaction removes the bias, confirming
-the imputation model rather than the adjustment nuisances as the source.
-
-**Imputation-model error is first order.** In the sharpest contrast with
-standard DML, the imputation model's error enters
-$\hat\theta$ *linearly*. In DML the outcome is observed and nuisance error
-enters only through a *product* of two errors [@chernozhukov2018;
-@robinson1988]: writing $\ell = \ell_0 + a$ and $m = m_0 + b$ for the errors
-in the two adjustment models, the remaining bias is
-$E[ab] - \theta_0 E[b^2]$, which is second order in the pair. Getting the
-treatment model right ($b = 0$) removes it entirely; getting only the
-outcome model right does not. The score is Neyman-orthogonal, first-order
-insensitive to nuisance error, rather than doubly robust in the usual sense.
-SUDO adds a third model whose treatment-direction error is unprotected and
-first-order, damped only by $\bar c_1 < 1$. @tbl-sensitivity confirms this
-numerically: a perturbation applied to the outcome nuisance in DML leaves
-the estimate unbiased at every level, whereas the same-sized index
-perturbation in SUDO produces a linear bias with slope exactly $\bar c_1$.
+Fitted-index error enters the SUDO target at first order. If the effective
+treatment component is displaced by $\delta_D$, the leading bias is
+approximately $\bar c_1\delta_D$, where $\bar c_1$ averages $c(e)$ over
+the treatment-relevant index distribution. Error in the covariate component
+can also survive because completion is nonlinear in the fitted index.
+Partialling-out does not erase either channel. Target-level bias, not
+predictive fit alone, is therefore the relevant validation criterion.
 
 # Machine-learning imputation models
 
-@eq-ess reverses the usual DML emphasis: imputation-model quality matters
-more than adjustment-model quality. A well-specified parametric imputation
-model (logistic or cumulative-link)
-needs no extra machinery, since its covariance supplies the proper draw
-directly. Such draws propagate parameter uncertainty and attain near-nominal
-coverage in our parametric experiments; @sec-theory characterizes the small
-Rubin-variance discrepancy that remains. A black-box learner introduces two
-obstacles: it can carry treatment-direction error $\delta_D$, creating bias,
-and it has no covariance matrix from which to draw, complicating inference.
+A parametric distribution model supplies both an index and a covariance
+matrix, so proper draws are immediate. A black-box learner supplies neither
+a treatment coefficient nor a joint parameter covariance. We therefore ask
+only for pointwise index and CDF predictions and handle structure and
+inference outside the learner.
 
-The bias is addressed by a *partially-linear* (PL) imputation model,
-$\hat V = \hat\alpha D + \hat f(X)$, in which the treatment enters linearly
-and machine learning handles only $X$, so no treatment-by-covariate
-artifact can arise. This restriction blocks one important source of
-treatment-direction error, but it does not guarantee that $\hat f$ is
-accurate or that the learner satisfies the projected expansion needed for
-inference. It defines a structural learner class, not a commitment to one
-training algorithm. We implement it with a generalized additive model
-(GAM), multivariate adaptive regression spline (MARS) bases followed by a
-joint logistic fit, and neural-network backfitting. All three adaptive
-learners meet the Monte Carlo-aware bias criterion across effect sizes in
-the common comparison in @sec-sims. We also state the corresponding
-results for a deterministic series dictionary: Theorem S1 gives its projected
-first-order expansion and Theorem S2 its bootstrap stability, both under
-explicit series conditions. The fixed degree-three Hermite learner we run is
-a numerical reference for those results rather than an instance of them, for
-the reason given in @sec-theory, and it is not the practical default.
+For the validated binary experiments, we restrict the imputation index to
+$\hat\alpha D+\hat f(X)$. A GAM, MARS bases built from $X$ only, and
+neural-network backfitting all implement this structure. The restriction
+prevents treatment-by-covariate interactions, but it does not guarantee a
+good fit or a small target bias. Two other partially linear learners failed
+the bias criterion, including one tuned by predictive risk.
 
-For inference, we use a *full-pipeline bootstrap*, the nonparametric
-counterpart of the proper draw. A parametric model injects imputation-model
-uncertainty by sampling $\beta$ from its covariance. Here we instead
-resample the whole data set and rerun the entire procedure, cross-fitting
-and all, using the spread of the estimates as the standard error. Both
-approaches target the same variance component; the bootstrap obtains it by
-refitting when no covariance is available. It has to wrap the *whole* pipeline,
-because a within-fold refit of the model alone under-propagates that same
-imputation-model variability. In the designs studied, normal intervals using
-this full-pipeline bootstrap attain nominal coverage for all three adaptive
-learners (@sec-sims).
+When a learner has no usable covariance, the full-pipeline bootstrap
+resamples the observations and reruns the entire procedure, including the
+imputation learner, folds, completions, and adjustment nuisances. A
+within-fold refit misses important sources of variation. In the validated
+binary designs, normal intervals based on the full-pipeline bootstrap
+standard deviation attain nominal coverage.
 
-Implication M2 states a learner-class bootstrap result under a projected
-bootstrap-stability condition and conditional nuisance rates. Under those
-conditions, fixed and redrawn regular folds are both admissible, and only the
-integrated generated-outcome map must be differentiable, not every raw
-inverse-transform draw. Implication M2 also identifies a fixed-imputation
-centering issue. Fresh surrogate randomness makes the bootstrap variance
-consistent, but it does not justify the usual distribution centered at one
-realized randomized estimate. The supported procedure is therefore the
-normal interval based on the full-pipeline bootstrap standard deviation.
-
-Learner-specific verification of the projected stability condition remains
-open for the three adaptive algorithms. The deterministic series result
-closes the proof route for one tractable partially-linear learner; the
-adaptive-learner comparison below supports, but does not prove, the same
-conclusion for GAM, MARS, or neural backfitting.
-
-A Bayesian ensemble offers a direct alternative because each posterior draw
-is a complete imputation model and therefore a proper draw. Under a probit
-imputation model, the Albert-Chib augmentation variable is the surrogate
-completion, so each Gibbs sweep supplies one. In the probit analogue we
-studied, however, the approach did not meet the bias criterion. Bayesian
-additive regression tree (BART) imputation, both unconstrained and under the
-partially-linear restriction above, had bias that grew with signal strength
-to about 5% of $\theta_0$. Its posterior-draw and bootstrap uncertainty
-estimates were similar. This result comes from one design and is not a general
-verdict. The run is in the repository. A forest's out-of-bag or
-infinitesimal-jackknife variance [@wager2014] is not such a route at all: it
-quantifies prediction uncertainty at a point, not a coherent joint draw of
-the whole imputation model.
+These results support a workflow, not a blanket theorem for arbitrary
+learners: impose a scalar-index structure suited to the estimand, tune on
+target-level simulation bias, and require coverage validation before
+promotion.
 
 # Simulation study {#sec-sims}
 
-Every simulation data-generating process (DGP) follows the causal structure
-in @fig-sim-dag. Independently and identically distributed (iid) covariates
-determine treatment assignment; treatment and covariates then determine a
-latent utility, which is coarsened into the observed category:
+The simulations draw independent standard-normal covariates, assign treatment
+from those covariates, and coarsen a partially linear latent utility:
 
 $$X_1, \dots, X_p \stackrel{\text{iid}}{\sim} N(0, 1), \qquad
 D \mid X \sim \mathrm{Bernoulli}\bigl(\Lambda(\pi(X))\bigr), \qquad
-U = \theta_0 D + g_0(X) + \varepsilon,$$ {#eq-dgp}
+Z = \theta_0 D + g_0(X) + \varepsilon,$$ {#eq-dgp}
 $$\varepsilon \sim F, \qquad
-Y = j \iff \kappa_{j-1} < U \le \kappa_j,$$
+Y = j \iff \kappa_{j-1} < Z \le \kappa_j,$$
 
-where $\Lambda$ is the logistic cumulative distribution function. Choosing
-$(p, \pi, g_0, F, \kappa, \theta_0, n)$ then fixes a design. We use two
-covariate structures throughout. The **one-covariate setting (S1)** has
-$\pi(X) = 0.8X$ and $g_0(X) = X$; every fitted model is correctly specified,
-so only pooling is under test. The **five-covariate machine-learning setting
-(S5)** has
+The correctly specified one-covariate design isolates inference. The
+five-covariate machine-learning design uses
 $$\pi(X) = X_4 + \cos X_5, \qquad g_0(X) = X_1^2 + \sin X_2 + 0.5 X_3,$$
-which is nonlinear in $X$ and makes the treatment depend on covariates that
-do not enter $g_0$. Binary outcomes take $\kappa = (0)$; ordinal ones cut
-$U$ at two interior thresholds into $J = 3$ categories. @tbl-dgp in the
-appendix lists every design's parameters.
+with binary or three-category ordinal outcomes. @tbl-dgp lists the full
+designs.
 
-The coverage target is $0.95$, and Monte Carlo error for a reported coverage
-rate is about $\pm 0.02$. **Standard deviation (SD)** denotes the
-estimator's run-to-run variability; **mean standard error (mean SE)** is the
-average uncertainty it reports. A mean SE below the SD signals intervals
-that are too short. @sec-appendix gives learner and tuning
-specifications, fold and draw counts, and per-cell Monte Carlo standard
-errors. The tables below are generated at render time from the committed
-result files.
+The coverage target is 0.95. Standard deviation (SD) is run-to-run
+variability; mean standard error (mean SE) is the average reported
+uncertainty. The tables are generated from committed result files.
 
 ```{r}
 #| label: results-setup
@@ -670,8 +456,8 @@ results_dir <- "../../R/results"
 read_result <- function(filename) {
   read.csv(file.path(results_dir, filename), check.names = FALSE)
 }
-sg <- function(x, d = 3) sprintf(paste0("%+.", d, "f"), x)  # signed
-nn <- function(x, d = 3) sprintf(paste0("%.", d, "f"), x)   # unsigned
+sg <- function(x, d = 3) sprintf(paste0("%+.", d, "f"), x)
+nn <- function(x, d = 3) sprintf(paste0("%.", d, "f"), x)
 ```
 
 **Proper draws are what deliver coverage.** With a simple binary design and
@@ -696,33 +482,11 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 ```
 
-**Ordinal outcomes.** With a three-category outcome and machine-learning
-adjustment, SUDO meets its bias criterion with valid-to-conservative
-coverage (@tbl-ordinal), a regime for which we are aware of no DML
-competitor for the latent-scale coefficient. The original implementation
-was substantially conservative. A term-level ordinal decomposition includes
-the threshold block and matches Monte Carlo throughout a clean
-cumulative-logit testbed. The decomposition predicts only
-2.8% variance overstatement at moderate signal and 2.0% understatement at
-strong signal, so threshold estimation and ordinal pooling alone cannot
-explain the 50% to 88% variance gap after flexible partialling nuisances are
-introduced. A paired nuisance-isolation experiment locates the gap in the
-fixed outcome nuisance: refitting $E[S\mid X]$ for every ordinal completion
-reduces mean $T$ by 38% while leaving the empirical sampling variance
-unchanged, moving $T/V$ from 1.505 to 0.942. The full corrected stage at
-$B=25$ and 200 replications has bias 0.016, coverage 0.960, and $T/V=1.214$
-with Monte Carlo standard error 0.122. Per-draw refitting is therefore the
-validated ordinal procedure, at the cost of fitting the outcome nuisance
-$B$ times rather than once.
-The isolation experiment and the full stage report $T/V$ on opposite sides
-of one, 0.942 and 1.214, but each is within two Monte Carlo standard errors
-of one at its own resolution, so they do not conflict and neither is
-evidence of a remaining ordinal anomaly. Rubin's
-variance is guaranteed to err safe only under conditions we have not
-verified here (a valid imputation model together with a self-efficient
-complete-data analysis), and under uncongeniality it can be biased in
-either direction [@meng1994; @xie2017]. The over-coverage is a property of
-these designs, not a general guarantee.
+**Ordinal outcomes.** With three categories and machine-learning adjustment,
+SUDO meets the bias criterion with valid coverage (@tbl-ordinal). The
+outcome nuisance $E[S\mid X]$ must be refit for each ordinal completion;
+reusing one fit inflated the within-draw variance. The corrected procedure
+has bias 0.016 and coverage 0.960 in 200 replications.
 
 ```{r}
 #| label: tbl-ordinal
@@ -742,18 +506,13 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 ```
 
-**What the binary and direct-coefficient comparisons show.** Stages 8 to 12
-remove any basis for a general superiority claim. In the ordinal parametric
-experiment, SUDO and the direct `clm` coefficient agree both when the model
-is correct and when its linear covariate structure is misspecified. The
-truncation perturbation result does not protect against the pseudo-true error
-of a fitted misspecified model. Stage 11 is the regularization boundary
-result: in its high-dimensional binary experiment, SUDO attenuates full
-imputation-model treatment-penalty bias but does not remove it; the tailored
-orthogonal score is closer to zero. When the treatment term is left
-unpenalized, the two are a dead heat. Under a cloglog truth, all three
-correct-link estimators agree, while every logit analysis is badly biased.
-These are comparisons of bias and sampling SD, not efficiency rankings.
+**Direct and tailored comparisons.** SUDO does not dominate a correct
+outcome-specific estimator (@tbl-no-superiority). In the correct ordinal
+parametric design, SUDO and the direct cumulative-link coefficient agree. Under a
+cloglog truth, SUDO, the tailored orthogonal score, and the direct cloglog
+coefficient have indistinguishable bias. In the high-dimensional binary
+design, SUDO attenuates treatment-regularization bias but does not remove it.
+These comparisons define the method's scope rather than rank efficiency.
 
 ```{r}
 #| label: tbl-no-superiority
@@ -762,9 +521,10 @@ These are comparisons of bias and sampling SD, not efficiency rankings.
 s8 <- read_result("stage8_summary.csv")
 s11 <- read_result("stage11_debiased_comparison.csv")
 s12 <- read_result("stage12_link_flexibility.csv")
-o <- s8[s8$design %in% c("D1_correct", "D2_nonlinear") &
+o <- s8[s8$design == "D1_correct" &
           s8$estimator %in% c("clm_direct", "sudo"), ]
-h <- s11[s11$n == 2000 & s11$estimator %in% c("PL_OS", "sudo"), ]
+h <- s11[s11$n == 2000 & s11$arm == "pen" &
+           s11$estimator %in% c("PL_OS", "sudo"), ]
 l <- s12[s12$estimator %in% c("sudo_cloglog", "plos_cloglog",
                               "glm_cloglog"), ]
 table_data <- rbind(
@@ -788,56 +548,15 @@ knitr::kable(table_data, align = c("l", "l", "r", "r"))
 **Link misspecification.** Generating Gumbel noise but assuming a logistic
 link substantially biases the latent-scale effect (+0.77 for binary, +0.58
 for ordinal outcomes, with zero coverage). The correct link removes this
-bias (bias $<0.005$, with valid-to-conservative coverage of 0.980 and
-0.975). A surrogate-residual check behaves as expected: the conditional
-second moment drifts with $X$ under the misspecified fit (nominal
-$p \approx 2\times 10^{-4}$) and not under the correct one
-($p \approx 0.46$). Under a correctly specified model the surrogate residual
-has constant conditional mean and variance [@liu2018], so drift is evidence
-against the fitted specification. It is not specific to the link, since
-scale heterogeneity, omitted mean structure, or non-proportionality would
-also produce drift, and the reported values aggregate over surrogate draws
-and are not calibrated for parameter estimation. We therefore use this as a
-diagnostic rather than a test.
+bias (bias $<0.005$). Conditional second-moment drift in the surrogate
+residual flags the wrong fit but is not specific to the link, so we use it as
+a diagnostic rather than a formal test [@liu2018].
 
-**First-order versus second-order sensitivity.** @tbl-sensitivity
-traces the bias after perturbing one input by a known function. Standard DML
-with the observed outcome remains unbiased under an arbitrarily wrong
-outcome nuisance when the propensity is correct. SUDO's index error instead
-enters linearly: its treatment-direction slope matches the derived
-$\bar c_1$ (0.669 at $\theta_0 = 1.5$, 0.861 at $\theta_0 = 3$) to within
-0.001.
-
-| Arm | Perturbed | Bias vs. perturbation |
-|---|---|---|
-| DML | outcome nuisance only | flat, $\approx 0$ |
-| DML | both nuisances | quadratic |
-| SUDO | index, treatment direction | linear, slope $=\bar c_1$ |
-
-: Nuisance-sensitivity ladder. {#tbl-sensitivity}
-
-**Partially-linear imputation learners.** A tuned partially-linear backfit
-meets the bias criterion at both effect sizes. Pairing it with the
-full-pipeline bootstrap brings strong-effect normal coverage from 0.86 to
-0.98; the corresponding percentile coverage is 0.95. The normal interval is
-the inferential procedure supported by Implication M2 under its stated
-conditions. The percentile result is retained as an empirical comparison
-from the original validation. With 100 replications, either coverage
-estimate has Monte Carlo uncertainty of about $\pm 0.03$; the bootstrap SD
-also matches the estimator's run-to-run variability at this resolution.
-
-Backfitting is not essential. A common-sample comparison fits the same
-$\alpha D + f(X)$ structure three ways: a GAM with a linear treatment term,
-MARS bases constructed from $X$ only followed by a joint logistic fit with
-mandatory linear $D$, and the tuned neural-network backfit. The MARS
-configuration is selected on theta-level Monte Carlo bias, not predictive
-generalized cross-validation (GCV). The three adaptive learners pass the
-original prespecified bias and percentile-coverage criteria
-(@tbl-pl-learners). Their normal coverage, which is the recommended
-inferential comparison after the fixed-$B$ centering analysis, ranges from
-0.94 to 0.98. With 50 replications, these coverage cells have Monte Carlo
-standard errors of roughly 0.02 to 0.05, so their small differences do not
-rank the learners.
+**Partially-linear imputation learners.** GAM, MARS, and neural backfitting
+fit the same $\alpha D+f(X)$ structure. All three pass the prespecified
+bias criterion, and full-pipeline-bootstrap normal coverage ranges from 0.94
+to 0.98 (@tbl-pl-learners). With 50 replications, these differences are too
+small to rank the learners.
 
 ```{r}
 #| label: tbl-pl-learners
@@ -861,103 +580,34 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r", "r"))
 ```
 
-**Partial linearity alone is not sufficient.** Two further partially-linear
-arms failed the bias criterion, both at $n = 2000$ with 100 replications. An
-interaction-constrained gradient-boosted index, left deliberately under-tuned
-to test whether the structural constraint protects a poorly fitted index on
-its own, had bias $-0.09$ at $\theta_0 = 1.5$ and $-0.16$ at $\theta_0 = 3$.
-A componentwise-boosted index whose stopping iteration was chosen by
-cross-validated predictive risk was worse, at $-0.17$ and $-0.44$. The second
-result is the informative one: predictive risk is not the objective that
-governs first-order target bias, so a rule that is principled for prediction
-need not control it. We ran no fixed-stopping comparator, so this does not
-show that the cross-validated rule made that learner worse than an untuned
-one. Both arms were scored with the recentered within-fold bootstrap rather
-than the full-pipeline bootstrap, so their coverage (0.85 and 0.73; 0.70 and
-0.11) is not comparable to @tbl-pl-learners and indicates only the scale of
-the failure. Partial linearity excludes treatment-by-covariate artifacts; it
-does not remove error in the treatment coefficient or in the covariate
-component.
+Partial linearity is necessary in these experiments but not sufficient. Two
+other partially linear learners fail the bias screen, including one selected
+by cross-validated predictive risk. Prediction error is therefore a
+diagnostic, not a tuning target for the treatment coefficient. The validated
+configurations were screened on target-level Monte Carlo bias and evaluated
+on separate seeds; a data-only selection rule remains open.
 
-**How the learners were selected.** The MARS and neural-backfit
-configurations were screened on target-level Monte Carlo bias against a known
-$\theta_0$, then evaluated in separate runs. This shows that the selected
-configurations met the prespecified bias and coverage criteria in these
-designs. It is not a selection rule available to an analyst working from
-data. A criterion
-computable without $\theta_0$, together with verification that (M2) and (MB1)
-survive the selection, remains open.
+With continuous treatment, bias remains below 1.5% of the truth in the binary
+and ordinal designs. Strong-signal coverage is less stable, reinforcing the
+need to rerun the full-pipeline bootstrap rather than transfer an uncertainty
+result from a binary-treatment experiment.
 
-The bootstrap comparison uses paired generated datasets and reruns each
-learner with either one fixed regular fold partition or folds redrawn in
-every resample. @tbl-ml-bootstrap reports the direct comparison. The
-within-fold method refits only the imputation learner inside the original
-training folds, while the improper method holds its fitted index fixed.
-Their SE ratios therefore locate which layer of variation is omitted. The
-normal interval is the procedure supported by Implication M2 under its high-level
-conditions; percentile and conventionally centered studentized intervals
-are included as fixed-$B$ empirical benchmarks.
+## Count oracle bridge
 
-```{r}
-#| label: tbl-ml-bootstrap
-#| echo: false
-#| tbl-cap: "Paired full-pipeline bootstrap comparison, $n=2000$, 30 replications, 15 outer resamples, and 15 surrogate completions per resample."
-sboot <- read_result("theory_ml_bootstrap.csv")
-table_data <- data.frame(
-  Learner = unname(learner_name[sboot$learner]),
-  `$\\theta_0$` = nn(sboot$theta, 1),
-  `Fixed / redrawn SE` = nn(sboot$fixed_over_redrawn_se),
-  `Within / full SE` = nn(sboot$within_over_full_se),
-  `Improper / within SE` = nn(sboot$improper_over_within_se),
-  `Normal coverage` = nn(sboot$coverage_redrawn_normal),
-  `Percentile coverage` = nn(sboot$coverage_redrawn_percentile),
-  `Studentized coverage` = nn(sboot$coverage_redrawn_student),
-  check.names = FALSE
-)
-knitr::kable(table_data, align = c("l", rep("r", 7)))
-```
-
-**Continuous treatment, and other variations.** The designs above all use a
-binary treatment, while the application below does not, so we check the
-transfer directly. Replacing binary $D$ with $D = 0.7\pi(X) + N(0,1)$ in the
-S5 structure leaves the estimator unbiased for both a binary outcome
-($-0.1\%$ at $\theta_0 = 1$, $+0.4\%$ at $2.5$) and a three-category ordinal
-one ($+0.7\%$ and $+1.5\%$), so the latent-scale estimand and the machinery
-carry over. Doubling the covariate count to ten, and scaling the
-treatment-assignment index so that overlap is markedly worse, likewise cost
-nothing in bias. Bias does appear when the imputation model cannot represent
-$g_0$, as described above. Coverage under a continuous treatment tracks the
-binary case at moderate signal but is worse at strong signal, where the
-reported SE falls furthest short of the truth. The full-pipeline bootstrap
-is the remedy there, as it is for the black-box case. Details and the full
-grid are in @tbl-dgp and the repository.
-
-## Count oracle bridge and unpromoted extensions
-
-The adapter implementation now accepts link-aware binary GAMs, flexible
-`mboost::PropOdds` ordinal fits, and coefficientless count learners paired
-with Poisson or negative-binomial CDFs.
-The full-pipeline bootstrap dispatches through the same estimator interface,
-and the ordinal estimator refits $E[S\mid X]$ for every completion. The count
-stage fits this nuisance to the analytic Rao-Blackwell completion and reuses
-it for the randomized comparison, isolating finite-$B$ completion noise. The
-standalone stages separate target-level tuning seeds from confirmatory seeds
-and encode the prespecified bias, coverage, and SD-to-SE gates.
-
-**Count oracle bridge.** We first isolate the count completion from fitted
-learner error by supplying the true scalar index and count CDF. The six
+We isolate count completion from fitted-learner error by supplying the true
+scalar index and count CDF. The six
 prespecified cells cross Poisson and negative-binomial laws, binary and
 continuous treatments, and two signal strengths where applicable. At
 $n=2000$, with 100 replications, $B=25$ randomized completions, five folds,
-and 99 full-pipeline bootstrap resamples, both completion estimators pass
-every bias, coverage, and SD-to-SE gate (@tbl-count-oracle). Their paired
-differences also remain within two completion Monte Carlo standard errors in
-every cell.
+and 99 bootstrap resamples, both analytic Rao-Blackwell and randomized
+completion pass every bias, coverage, and SD-to-SE gate
+(@tbl-count-oracle). Their paired differences are within two completion
+Monte Carlo standard errors in every cell.
 
 ```{r}
 #| label: tbl-count-oracle
 #| echo: false
-#| tbl-cap: "Count oracle bridge. The true index and conditional CDF are supplied. NB denotes negative binomial with size 2. Each cell uses $n=2000$, 100 replications, five folds, and 99 full-pipeline bootstrap resamples; randomized SUDO uses $B=25$."
+#| tbl-cap: "Count oracle bridge with the true index and CDF supplied. Entries pair Rao-Blackwell and randomized completion. Each cell uses $n=2000$, 100 replications, five folds, and 99 bootstrap resamples; randomized SUDO uses $B=25$."
 s15o <- read_result("stage15o_count_oracle.csv")
 cell_order <- c(
   "continuous_poisson_tlog1p5", "continuous_negbin_tlog1p5",
@@ -968,81 +618,63 @@ estimator_order <- c("rao_blackwell", "randomized")
 s15o$cell <- factor(s15o$cell, levels = cell_order)
 s15o$estimator <- factor(s15o$estimator, levels = estimator_order)
 result <- s15o[order(s15o$cell, s15o$estimator), ]
+rao_blackwell <- result[result$estimator == "rao_blackwell", ]
+randomized <- result[result$estimator == "randomized", ]
+stopifnot(identical(as.character(rao_blackwell$cell),
+                    as.character(randomized$cell)))
 table_data <- data.frame(
   Design = paste(
-    ifelse(result$treatment == "continuous", "Continuous", "Binary"),
-    ifelse(result$family == "poisson", "Poisson", "NB"),
+    ifelse(rao_blackwell$treatment == "continuous", "Continuous", "Binary"),
+    ifelse(rao_blackwell$family == "poisson", "Poisson", "NB"),
     sep = ", "
   ),
   `$\\theta_0$` = ifelse(
-    abs(result$truth - log(1.5)) < 1e-8,
+    abs(rao_blackwell$truth - log(1.5)) < 1e-8,
     "$\\log(1.5)$", "$\\log(2)$"
   ),
-  Completion = ifelse(
-    result$estimator == "rao_blackwell", "Rao-Blackwell", "Randomized"
+  `Bias (RB / randomized)` = paste(
+    sg(rao_blackwell$bias), sg(randomized$bias), sep = " / "
   ),
-  Bias = sg(result$bias),
-  SD = nn(result$sd),
-  `Mean SE` = nn(result$mean_se),
-  Coverage = nn(result$coverage),
+  `SD/SE (RB / randomized)` = paste(
+    nn(rao_blackwell$sd / rao_blackwell$mean_se),
+    nn(randomized$sd / randomized$mean_se),
+    sep = " / "
+  ),
+  `Coverage (RB / randomized)` = paste(
+    nn(rao_blackwell$coverage), nn(randomized$coverage), sep = " / "
+  ),
   check.names = FALSE
 )
-knitr::kable(table_data, align = c("l", "c", "l", "r", "r", "r", "r"))
+knitr::kable(table_data, align = c("l", "c", "r", "r", "r"))
 ```
 
-This bridge validates the count completion calculation and its bootstrap
-when the distribution input is correct. It does not validate a fitted count
-learner. No fitted count learner or count application is promoted here.
-
-Separate oracle checks establish that the flexible ordinal learners are
-accurate enough to justify running their expensive confirmation. For
-proportional odds, centered index RMSE is 0.331 for $J=3$ and
-0.384 for $J=5$, with correlations above 0.97; every fitted threshold vector
-is ordered. These are learner smoke checks, not coverage evidence. We do not
-promote flexible ordinal or fitted-count support to the Python package until
-their prespecified confirmation stages pass.
-
-The bikeshare analysis is likewise prespecified in
-`R/bikeshare_application.R`: hourly total rentals are the count outcome,
-standardized temperature is the treatment, and `atemp`, `casual`, and
-`registered` are excluded. The constrained-XGBoost negative-binomial learner
-keeps $D$ isolated from the joint covariate interaction group, keeps dates
-together in five contiguous folds, and applies a seven-day moving-block
-full-pipeline bootstrap with 14- and 28-day sensitivity. A structured
-negative-binomial GAM remains a direct-coefficient comparator. The
-application's interpretation is an illustrative
-conditional association. Even after the computation is complete, the block
-bootstrap remains empirical because the present theory assumes independent
-observations.
+This bridge validates the count completion and bootstrap when the supplied
+distribution is correct. It does not validate a fitted count learner. The
+constrained-XGBoost point screen failed its promotion gate, so fitted count
+support and the prespecified bikeshare application remain outside the paper's
+claims.
 
 # Application: volatile acidity and wine quality
 
-We estimate the effect of volatile acidity, the acetic-acid fault commonly
-described as a vinegar or nail-polish aroma, on wine quality. In the
-University of California, Irvine (UCI) wine-quality data [@cortez2009],
-quality is the median ordinal score from blind tasters. The data contain
-1,599 red and 4,898 white wines, with quality spanning six to seven levels.
+We apply ordinal SUDO to the UCI wine-quality data [@cortez2009]. Quality is
+the median ordinal score from blind tasters. We analyze the 1,599 red and
+4,898 white wines separately; observed scores range from 3 to 8 for red wine
+and 3 to 9 for white. The treatment is standardized volatile acidity, an
+acetic-acid fault associated with vinegar-like aroma. The adjustment set is
+the other ten standardized physicochemical measurements.
 
-Because these data are observational, causal interpretation depends on the
-assumed application DAG in @fig-dag. Volatile acidity is a plausible
-treatment: tasters are expected to penalize the acetic fault, and the
-variable is a fault endpoint rather than an apparent cause of the remaining
-chemistry. Even so, the interpretation requires the other physicochemical
-measurements to be pre-treatment adjustments rather than mediators or
-proxies of volatile acidity. It also requires winemaking practice to have no
-direct effect on quality beyond measured chemistry, the exclusion
-restriction encoded by the graph.
-
-We do not claim that these assumptions are established. Instead, we examine
-the two most questionable features through adjustment-set robustness and an
-unmeasured-confounding calibration. The application illustrates the method
-on a genuinely ordinal outcome; it is not a settled causal finding.
+The data are observational. A causal reading requires the measured chemistry
+to be a sufficient pre-treatment adjustment set and winemaking practice to
+affect quality only through that chemistry and volatile acidity
+(@fig-dag). We do not claim that these assumptions are established. The
+analysis illustrates the method on a genuinely ordinal outcome.
 
 ```{mermaid}
 %%| label: fig-dag
-%%| fig-width: 3.2
+%%| fig-width: 5.2
+%%| fig-pos: H
 %%| fig-cap: "Assumed application DAG. Volatile acidity (the treatment) affects latent quality directly; unobserved winemaking practice confounds both through the measured chemistry, the adjustment set."
-flowchart TD
+flowchart LR
   P((winemaking<br/>practice)):::u --> VA[volatile acidity]
   P --> X[other chemistry]
   X --> VA
@@ -1051,33 +683,21 @@ flowchart TD
   classDef u fill:#eee,stroke-dasharray:4 3;
 ```
 
-Volatile acidity retains adequate residual variation after adjustment: 75%
-of its standard deviation for red wine and 94% for white wine. These values
-are residual $\sqrt{1 - R^2}$ computed from the $R^2$ column of @tbl-wine.
-The treatment residual is therefore not annihilated, and the
-residual-on-residual regression is well posed.
+\FloatBarrier
 
-Ordinal SUDO, using a cumulative-link imputation model, proper draws,
-cross-fitted nuisances, and Rubin pooling, gives a negative effect on latent
-quality. The estimate is stable across linear and partially-linear spline
-imputation models (@tbl-wine). As a model-based comparator, we also report
-the treatment coefficient from the cumulative-link fit itself. Its standard
-error is smaller (white: 0.031
-versus 0.064-0.065) because it relies directly on the full parametric
-outcome model, whereas SUDO leaves the partialling regressions flexible and
-propagates the completion and cross-fitting variability. The narrower
-model-based interval relies on stronger functional-form assumptions and is
-not directly comparable to the SUDO interval.
+Volatile acidity retains 75% of its marginal standard deviation after
+adjustment in red wine and 94% in white wine. Both imputation models are
+proportional-odds logits with volatile acidity entering linearly. One uses
+the adjustment variables linearly; the other uses a three-degree-of-freedom
+natural spline for each variable, with no treatment-by-covariate interactions.
+Ordinal SUDO uses 50 proper draws, five-fold cross-fitted GAM nuisances, and
+Rubin pooling. The two specifications give similar estimates (@tbl-wine).
 
-Volatile acidity is standardized before fitting, so these coefficients are
-per one standard deviation (about $0.18$ g/dm$^3$ for red, $0.10$ for
-white), which keeps the effect comparable across the two wines instead of
-tied to the raw acetic-acid scale. The proportional-odds reading then makes
-the magnitude concrete: a one-SD rise in volatile acidity multiplies the
-odds of a wine scoring above any fixed quality level by $\exp(\hat\theta)$,
-about $0.59$ for red ($\hat\theta = -0.52$) and $0.64$ for white
-($\hat\theta = -0.45$), a reduction of roughly 36 to 40% in those odds per
-standard deviation.
+Because volatile acidity is standardized, the coefficients are per one
+standard deviation, about 0.18 g/dm$^3$ for red wine and 0.10 for white.
+A one-SD increase multiplies the odds of scoring above any fixed quality
+level by about 0.59 for red wine and 0.64 for white wine. The direct
+cumulative-link coefficient is included as a model-based comparator.
 
 ```{r}
 #| label: tbl-wine
@@ -1111,129 +731,56 @@ table_data <- rbind(wine_row("red", "Red"), wine_row("white", "White"))
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 ```
 
-The negative sign is stable across the reported sensitivity checks. Dropping
-any single covariate from the adjustment set leaves the effect in
-$[-0.68, -0.47]$ for red and $[-0.52, -0.42]$ for
-white, every interval excluding zero, so the estimate does not hinge on one
-adjustment choice. Read through the omitted-variable-bias framework
-[@cinelli2020], an unobserved confounder would have to explain about 15%
-(red) and 10% (white) of the residual variation in both volatile acidity and
-latent quality to bring the effect to zero; weaker confounding leaves it
-negative. We report these robustness values as a heuristic calibration
-rather than a formal bound: the Cinelli-Hazlett formula is derived for
-omitted-variable bias in linear regression with an observed outcome, and we
-are applying it to a pooled, surrogate-completed estimate whose standard
-error comes from Rubin's rules. Its validity in that setting has not been
-established. These values and the leave-one-out ranges are in the committed
-result files.
+The negative sign is stable when any one adjustment covariate is removed.
+An omitted-variable calibration suggests that a confounder would need to
+explain roughly 15% of the residual treatment and outcome variation for red
+wine and 10% for white wine to move the estimate to zero [@cinelli2020].
+Because that calibration was derived for linear regression with an observed
+outcome, we report it as a heuristic rather than a formal SUDO bound.
 
-**How wrong could the imputation model be?** Unmeasured confounding is the
-threat any observational analysis faces; the one specific to SUDO is error in
-the imputation model, which @eq-leak and @eq-ce show reaches $\hat\theta$ at
-first order. That channel admits its own sensitivity statement, and unlike
-the robustness value above it follows directly from the estimator's own
-theory rather than being imported. Since the bias is $\bar c_1 \delta_D$, the
-imputation model's error in the volatile-acidity coefficient that would drive
-the estimate to zero is $\delta_D = -\hat\theta / \bar c_1$. Evaluating
-$\bar c_1$ at the fitted index with the continuous-treatment multiplier
-$E[c(\eta) D R]/E[R^2]$ and the general-$J$ pass-through of Proposition A1
-gives $\bar c_1 = 0.21$ (red) and $0.17$ (white). The cumulative-link model
-would therefore have to be wrong about volatile acidity by $+2.51$ and
-$+2.65$ respectively, which is 4.1 and 5.3 times the coefficient it actually
-fits. This calculation addresses treatment-direction error only. Conditional
-on covariate-direction misspecification being negligible, it shows that a
-large treatment-coefficient error would be required to erase the estimate;
-it does not establish robustness to general imputation-model error.
-
-Two features of the design produce this result. First, the pass-through is
-near $0.2$, rather than the $0.67$ to $0.86$ found in the binary
-simulations. Six or seven categories with well-spaced thresholds constrain
-the latent utility tightly, allowing truncation to provide substantial
-self-correction. Second, the estimate is far from zero relative to its
-scale. Both protections weaken for a coarser outcome or a smaller effect,
-precisely the settings in which this sensitivity calculation becomes most
-informative.
+The completion itself provides substantial self-correction in this
+application: the fitted pass-through averages 0.21 for red wine and 0.17 for
+white wine. This does not establish robustness to an arbitrary wrong
+imputation model, but it shows why the ordinal categories carry useful
+information beyond the fitted index.
 
 # Discussion
 
-SUDO is a uniform completion-and-projection interface for discrete
-conditional distributions with a scalar treatment index. It does
-not dominate a correct tailored estimator. Binary logit and cloglog results
-show parity with the corresponding orthogonal scores, and a structured
-imputation model already supplies a direct treatment coefficient.
-Proposition 2 states the more general difference: SUDO projects the fitted
-index and adds an outcome-informed correction that can help, hurt, or vanish.
-The strongest
-established use is ordinal, where we identify no published tailored-score
-analogue. Count outcomes provide a natural log-mean extension: the oracle
-bridge validates the completion and bootstrap calculations, while validation
-with a fitted distribution learner remains open.
+SUDO turns a discrete-outcome problem into a familiar continuous
+partialling-out problem. The fitted distribution identifies the target
+scale; randomized completion restores that scale in conditional mean; DML
+then removes flexible covariate effects. This separation is the main value
+of the method.
 
-The randomized-CDF formulation separates the target from the reference
-noise law. Under a correct conditional distribution, randomized PIT makes
-the added reference quantile mean zero. The link error law is natural for
-binary and ordinal outcomes, while a standard normal reference gives the
-usual randomized quantile residual for counts. This uniformity is a software
-and derivation advantage, not an efficiency claim.
+The method does not dominate a correct direct or tailored estimator. Its
+advantage is a common interface, especially for ordinal outcomes for which a
+tailored orthogonal score is not readily available. Proper draws or a
+full-pipeline bootstrap are part of the estimator, not optional refinements.
 
-The propagation analysis makes the main tradeoff explicit. The imputation
-model sits outside the orthogonality guarantee, so its error reaches the
-effect at first order through a truncation factor that increases as the
-signal strengthens and the outcome's self-correction fades. Standard DML
-nuisance error is instead second order. In the designs studied, this
-sensitivity is manageable: well-specified parametric models with proper
-draws and the three validated partially-linear learners with a
-full-pipeline bootstrap attain nominal coverage. Partial linearity alone
-does not provide this guarantee. The imputation learner must still estimate
-the covariate component well and satisfy the projected stability conditions
-needed for inference, and two partially-linear arms we tried did not. The
-MARS and neural-backfit configurations were themselves selected against a
-known $\theta_0$, so supplying a selection criterion an analyst could
-compute from data remains open.
+The same separation also exposes the central risk. DML orthogonality protects
+the adjustment regressions, but not the distribution learner that creates
+the surrogate. Partial linearity prevents treatment-by-covariate interactions
+but does not guarantee small treatment bias. Each new learner and outcome
+family therefore needs target-level simulation and coverage checks.
 
-Several problems remain open. @sec-theory separates the proved results from
-the conjectured ones. Theorem S1 proves the projected expansion for a
-deterministic logistic-series learner, and Theorem S2 verifies its
-full-pipeline bootstrap stability under explicit series and conditional
-bootstrap conditions. The broader adaptive-learner statements are
-Implications M1 and M2, which hold under high-level learner conditions that
-are stated but not minimized. What remains conjectural is that GAM, MARS,
-and neural backfitting satisfy those conditions, the projected
-asymptotic-linearity requirement in particular. SUDO therefore has
-a proved projected expansion and bootstrap result for the theorem-reference
-specialization, while inference with the adaptive learners remains
-simulation-supported. Natural next steps are to extend the adaptive results
-beyond the data-generating structures studied and to develop a method for
-unordered (multinomial) outcomes, which require a vector surrogate and have
-no single scalar effect. A Bayesian ensemble could replace the bootstrap
-because its posterior draws are literal proper imputations. A BART version
-did not improve on the bootstrap in the one design we tried, so the
-conditions under which that route succeeds remain open. Fitted-count and
-flexible-ordinal coverage must pass their prespecified confirmation before
-Python promotion. The moving-block bikeshare bootstrap also needs
-dependent-data theory; current bootstrap results assume independent
-observations.
-
-Two narrower theoretical questions also remain. Conjecture A2 leaves open when
-$G'C = \sigma_u^2$: the identity fails in both directions in the validated
-testbeds, though the resulting 1% to 2% discrepancy is smaller than the
-fixed-$B$ chi-square variation at ordinary imputation counts. Strong-signal
-theory separately needs primitive conditions for dominated differentiability
-of the integrated completion map and for excluding asymptotic separation as
-category probabilities approach zero or one.
+The validated contribution is currently binary and ordinal. The count oracle
+bridge shows that the completion calculation extends cleanly to Poisson and
+negative-binomial laws, but the fitted count learner did not pass promotion.
+The next methodological need is stable distribution learners and data-driven
+tuning rules that control target bias.
 
 # Data and software
 
-The wine-quality and bikeshare data come from the University of California,
-Irvine Machine Learning Repository [@cortez2009; @uciBikeSharing]. The `sudo` Python package provides the
+The wine-quality data come from the University of California, Irvine Machine
+Learning Repository [@cortez2009]. The `sudo` Python package provides the
 parametric estimator for binary and ordinal outcomes, including proper draws
 and the per-completion ordinal outcome-nuisance refit. The partially-linear
 machine-learning imputation learners and the full-pipeline bootstrap are
 implemented in R, which is also where every method is prototyped and
 validated before release. Count and flexible ordinal adapters remain R-only
-until their fitted-learner confirmation stages pass. The open-source project repository contains the code and committed
-result files behind every table and figure under the Massachusetts Institute
-of Technology (MIT) License:
+until their fitted-learner confirmation stages pass. The open-source
+repository contains the code and committed result files behind every table
+and figure under the MIT License:
 <https://github.com/bgreenwell/sudo>.
 
 # Declaration of artificial intelligence use
@@ -1243,789 +790,10 @@ summaries of reference materials. The authors reviewed and validated all
 outputs, retain full ownership of the final manuscript, and accept sole
 responsibility for any errors.
 
-# Appendix: asymptotic theory {#sec-theory}
-
-This appendix develops four theoretical components used in the body: the
-pass-through map and its derivatives for general $J$; the moment properties
-that separate adjustment nuisances from the imputation model; the
-fixed-$B$ asymptotic distribution of the pooled estimate; and the resulting
-account of Rubin's variance.
-
-The labels distinguish the status of each result. Direct differentiation,
-conditioning, or inequalities establish the propositions. Conjectures A1 to
-A3 are labeled as such because we give heuristic derivations and numerical
-support rather than proofs. Implications M1 and M2 are conditional
-calculations: they follow from high-level learner conditions, and what
-remains conjectural is whether the implemented adaptive learners satisfy
-those conditions, not the displayed conclusions given them. The
-deterministic-series specialization is stated as a theorem because explicit
-series and conditional-bootstrap conditions are given and the arguments are
-carried out under them. The learner-specific projected asymptotic-linearity
-and bootstrap-stability conditions remain unproved for the implemented
-adaptive learners. The
-project repository checks every closed-form expression numerically, using
-numerical differentiation for the pass-through derivatives and Monte Carlo
-for the variance decomposition.
-
-## Notation and assumptions
-
-Let the imputation model be a parametric family
-$P_\beta(Y \mid D, X)$ with latent index $\eta(D, X; \beta)$. For a
-generalized linear model (GLM) with known cutpoints, $\eta = x'\beta$. When
-a cumulative-link model estimates the cutpoints, we collect them and the
-index coefficients in $\beta = (\beta_\eta, \kappa)$. The thresholds are
-components of $\beta$, but not of $\eta$; they enter only through the
-truncation interval. This distinction matters in @eq-gblocks. Write
-$\hat\beta$ for the maximum-likelihood estimate,
-$m_0(X) = E[D \mid X]$, $R = D - m_0(X)$, and $J_\theta = E[R^2]$.
-
-Given $\beta$, a completion is $S(W; \beta) = \eta(D, X; \beta) + \xi$ with
-$\xi$ drawn from $F$ truncated to the interval $Y$ implies. The draw noise
-splits into a data-measurable part and a pure Monte Carlo part,
-
-$$\xi_i^{(b)} = e_i + u_i^{(b)}, \qquad e_i = E[\xi_i \mid W_i; \beta],
-\qquad E[u_i^{(b)} \mid W_i] = 0 ,$$ {#eq-split}
-
-This split determines the fixed-$B$ variance decomposition.
-Note that $\xi$ is *not* mean-zero given $W$: the truncation is selected by
-the observed $Y$. Only after averaging over $Y \mid D, X$ at the true model
-does the mean vanish, because composing $Y \sim P_{\beta_0}$ with the
-matching truncated draw reproduces the untruncated law, so
-$\xi \mid D, X \sim F$ exactly. Define
-
-$$\sigma_e^2 = E[e^2 R^2], \quad
-\sigma_u^2 = E[\operatorname{Var}(\xi \mid W) R^2], \quad
-\sigma_\varphi^2 = E[\xi^2 R^2] = \sigma_e^2 + \sigma_u^2 .$$
-
-We assume throughout: **(A1)** the latent model @eq-latent with
-selection-on-observables, a constant latent-scale effect, conditional error
-law $\varepsilon\mid D,X\sim F$, and
-overlap ($J_\theta > 0$, $\operatorname{Var}(D \mid X)$ bounded away from 0
-and $\infty$); **(A2)** a correctly specified, regular imputation model, so
-$\eta(D, X; \beta_0) = \theta_0 D + g_0(X)$ and
-$\sqrt n(\hat\beta - \beta_0) \to_d N(0, \Sigma_\beta)$ with
-$\Sigma_\beta = I(\beta_0)^{-1}$ the inverse per-observation information and
-influence function $\operatorname{IF}_\beta = I(\beta_0)^{-1} s_\beta(W)$;
-**(A3)** cross-fitted adjustment nuisances consistent in $L_2$ with the
-product rate
-$\lVert \hat\ell - \ell_0 \rVert_2 \lVert \hat m - m_0 \rVert_2 = o_p(n^{-1/2})$,
-each $o_p(n^{-1/4})$; **(A4)** finite fourth moments and dominated
-differentiability of $\beta \mapsto E[\varphi]$ at $\beta_0$; and **(A5)**
-proper draws $\beta^{(b)} \sim N(\hat\beta, \widehat\Sigma_\beta / n)$, so
-that $\beta^{(b)} = \hat\beta + n^{-1/2} Z_b$ with
-$Z_b \mid \text{data} \sim N(0, \Sigma_\beta)$.
-
-The scaling in (A5) must be explicit because $\Sigma_\beta$ is the
-limit of $n \widehat{\operatorname{Cov}}(\hat\beta)$ rather than of
-$\widehat{\operatorname{Cov}}(\hat\beta)$ itself; drawing with the
-unnormalized matrix would inject variance that does not vanish with $n$.
-
-**Scope.** Assumption (A2) describes the parametric case: one regular
-maximum-likelihood fit on the full data, with an estimated covariance from
-which to draw. The ordinal designs and wine application use this case.
-Implication M1 separately treats a cross-fitted flexible imputation index and
-does not require a single $\hat\beta$ or covariance matrix. Its central
-condition is an asymptotically linear, residual-weighted projection of the
-fitted index error. This learner-level condition does not follow from
-cross-fitting or structural partial linearity alone. Theorems S1 and S2
-establish it for the deterministic-series reference. For the three adaptive
-learners, we verify the generated-outcome linearization but do not claim a
-proof of their projected functional condition.
-
-## The pass-through map for general $J$
-
-For an outcome in category $j$ the draw truncates $\xi$ to $(a_j, b_j]$ with
-$a_j = \kappa_{j-1} - v$ and $b_j = \kappa_j - v$ at index $v$. Write
-$\mu_j(v, \kappa) = E[\xi \mid a_j < \xi \le b_j]$ and
-$p_j = F(\kappa^0_j - e) - F(\kappa^0_{j-1} - e)$ for the true category
-probability at true index $e$. Averaging over $Y \mid D, X$ gives the
-general form of @eq-ess,
-
-$$\psi(v, \kappa; e, \kappa^0) = v + \sum_{j=1}^{J} p_j\, \mu_j(v, \kappa).$$ {#eq-psiord}
-
-**Proposition A1.** *At $(v, \kappa) = (e, \kappa^0)$, writing
-$t_k = \kappa^0_k - e$,*
-
-$$c(e) = \frac{\partial \psi}{\partial v}
-= 1 - \sum_{k=1}^{J-1} f(t_k)\bigl[\mu_{k+1}(e) - \mu_k(e)\bigr],
-\qquad
-\frac{\partial \psi}{\partial \kappa_k} = f(t_k)\bigl[\mu_{k+1}(e) - \mu_k(e)\bigr].$$ {#eq-gblocks}
-
-*Consequently $c(e) = 1 - \sum_k \partial \psi / \partial \kappa_k$: the
-index derivative and the threshold derivatives are the same kernel.*
-
-*Proof.* Differentiate @eq-psiord. Both truncation limits move with slope
-$-1$ in $v$, and the derivative of a truncated mean with respect to its
-upper limit is $f(b)(b - \mu)/P$, with the analogous expression at the lower
-limit. Evaluated at the truth the truncation probability $P_j$ equals $p_j$,
-so the weights in @eq-psiord cancel the denominators and the surviving terms
-regroup by threshold. The final identity follows because $\mu_j$ depends on
-$(v, \kappa)$ only through $\kappa - v$, so shifting the index is the same
-as shifting every threshold the other way. $\square$
-
-Proposition A1 has three practical implications. For binary outcomes,
-$J = 2$ and $\kappa_1 = 0$, so the sum reduces to @eq-ce. For ordinal
-outcomes, the generally nonzero threshold derivatives require both
-$\Sigma_\beta$ and the gradient $G$ below to contain a threshold block.
-This requirement is why the ordinal full model must use a routine whose
-covariance covers the thresholds (`ordinal::clm`) rather than one whose
-covariance does not (`mgcv::ocat`).
-
-The final implication concerns interpretation. Pass-through depends on how
-much the categorization reveals about $U$, not simply on the number of
-categories. Refining a partition with well-placed thresholds lowers $c$ at
-$e = 0$ under a logit, from $0.307$ for binary outcomes to $0.157$ and
-$0.090$ for the three- and four-category configurations in
-@sec-numverify. Widening the same three-category partition reverses this
-pattern, raising $c(0)$ above the binary value and toward 1. The reason is
-visible in @eq-gblocks: a category spanning many error standard
-deviations has a nearly unbounded truncation interval, so its $\mu_j$ barely
-moves with the index and self-correction switches off. We therefore make no
-monotonicity claim in $J$. The relevant limit is $c \to 1$ as the observed
-category ceases to constrain $U$, the same mechanism that operates at strong
-signal.
-
-**The binary logit closed form.** For $J = 2$ under a logistic $F$, the
-truncated means have an exact expression that turns @eq-ce into @eq-centropy.
-Substituting $u = F(x)$, so that $x = \log\{u/(1-u)\}$ and $\mathrm{d}u = f(x)\,\mathrm{d}x$,
-the partial mean is
-$$\int_{-\infty}^{t} x f(x)\,\mathrm{d}x
- = \int_0^{F(t)} \log\frac{u}{1-u}\,\mathrm{d}u
- = q\log q + (1-q)\log(1-q) = -H(q), \qquad q = F(t),$$
-so the partial mean of a logistic is minus the entropy at the corresponding
-probability. Taking $t = -e$ and $p = F(e)$, and using $H(1-p) = H(p)$ with
-the fact that the untruncated mean is zero,
-$$\mu_-(e) = \frac{-H(p)}{1-p}, \qquad \mu_+(e) = \frac{H(p)}{p},
-\qquad \mu_+ - \mu_- = \frac{H(p)}{p(1-p)} .$$
-For the logistic law, $f(-e) = f(e) = p(1-p)$, so this factor cancels
-exactly in @eq-ce. Thus $c(e) = 1 - H(p)$ and
-$c(0) = 1 - \log 2 = 0.307$. The cancellation makes self-correction equal to
-the outcome entropy rather than merely proportional to it.
-
-## Cross-fitted partially linear imputation learners
-
-The machine-learning estimator does not have a finite-dimensional $\beta$.
-Partition the observations into fixed-$K$ folds $I_k$. For $i\in I_k$, fit
-the following index on $I_k^c$:
-$$\hat v_{-k}(D,X)=\hat\alpha_{-k}D+\hat f_{-k}(X),$$
-and form $B$ completions using independent auxiliary uniforms. Let
-$v_0(D,X)=\theta_0D+g_0(X)$ and define the conditional generated-outcome
-error
-$$\Delta_k(D,X)
-=\psi\{\hat v_{-k}(D,X);v_0(D,X)\}-v_0(D,X).$$ {#eq-ml-delta}
-For ordinal outcomes, the thresholds are additional arguments of $\psi$.
-The scalar-index result below applies directly to the binary
-machine-learning implementation.
-
-We use four learner-class conditions. **(M1)** Conditional on its training
-sample, each $\hat v_{-k}$ is $L_2$ consistent and the Taylor remainder obeys
-$$\sqrt n\sum_k\frac{|I_k|}{n}
-E\!\left[|R|\{\hat v_{-k}(D,X)-v_0(D,X)\}^2\mid I_k^c\right]=o_p(1).$$
-**(M2)** The residual-weighted projected error has an asymptotically linear
-representation for some mean-zero, square-integrable $\rho(W)$,
-$$\sqrt n\sum_k\frac{|I_k|}{n}E[R\Delta_k(D,X)\mid I_k^c]
-=\frac1{\sqrt n}\sum_{i=1}^n\rho(W_i)+o_p(1).$$
-**(M3)** The cross-fitted adjustment nuisances satisfy (A3), including after
-replacing the oracle completion by the fitted completion, and their
-interactions with $\hat v_{-k}-v_0$ are $o_p(n^{-1/2})$. **(M4)** The
-pass-through map is twice continuously differentiable on a neighbourhood
-reached with probability tending to one, with a dominated second derivative;
-the auxiliary uniforms are independent of the sample and one another; and
-the centered completion
-$S\{\hat v_{-k}\}-\psi\{\hat v_{-k};v_0\}$ converges in
-conditional $L_2(R^2)$ to its oracle counterpart.
-
-Condition (M2) is the substantive requirement on the imputation learner.
-Prediction consistency alone does not imply it because the imputation model
-lies outside the orthogonality guarantee. For the partially linear class,
-the first-order term on its left side is
-$$E\!\left[R c(v_0)
-\left\{(\hat\alpha-\theta_0)D+\hat f(X)-g_0(X)\right\}\right],$$ {#eq-ml-first}
-up to fold averaging. The treatment-coefficient error and the flexible
-$X$-direction error both enter at first order. The latter need not vanish:
-$R$ is orthogonal to functions of $X$, but $R c(v_0)$ generally is not.
-
-**High-level implication M1 (adaptive-learner expansion).** *Under (A1) and
-(M1)-(M4), with fixed $K$ and fixed $B$,*
-$$\sqrt n(\hat\theta_B-\theta_0)
-=J_\theta^{-1}\frac1{\sqrt n}\sum_{i=1}^n
-\left[e_iR_i+\rho(W_i)+R_i\bar u_i\right]+o_p(1),\qquad
-\bar u_i=B^{-1}\sum_{b=1}^B u_i^{(b)},$$ {#eq-ml-expansion}
-*and hence*
-$$\sqrt n(\hat\theta_B-\theta_0)\ \to_d\
-N(0,V_B^{\mathrm{ML}}),\qquad
-V_B^{\mathrm{ML}}=J_\theta^{-2}
-\left\{\operatorname{Var}(eR+\rho(W))+\frac{\sigma_u^2}{B}\right\}.$$ {#eq-ml-vb}
-
-*Argument.* Conditional on the training sample for fold $k$,
-Taylor-expand @eq-ml-delta at $v_0$. Proposition A1 gives the linear term in
-@eq-ml-first; (M1) and (M4) control the quadratic remainder. Cross-fitting
-makes the empirical fluctuation of the vanishing index error $o_p(1)$, while
-(M2) supplies the first-order contribution from the training sample.
-Neyman orthogonality and (M3) remove the adjustment-nuisance terms.
-
-At the truth, the completion error is $e_i+u_i^{(b)}$. Averaging the $B$
-completions leaves $\bar u_i$ with conditional variance $\sigma_u^2/B$. A
-joint central limit theorem then gives @eq-ml-expansion and @eq-ml-vb. This
-law is unconditional over the observed sample and auxiliary uniforms.
-Conditional on the observed sample, the uniforms represent imputation Monte
-Carlo error rather than repeated-sample uncertainty.
-
-The unresolved learner-specific conjecture is that the implemented GAM,
-MARS, and neural-backfit learners satisfy (M2) and the remaining uniform
-remainder requirements in (M1), (M3), and (M4). The argument above also
-compresses the held-out empirical fluctuation of $R\Delta_k$, the
-denominator replacement, and the joint triangular-array central limit
-theorem, none of which is formalized here.
-
-The parametric expression follows as a corollary. If
-$\hat v=v(\hat\beta)$ is regular, then
-$\rho(W)=G'\operatorname{IF}_\beta(W)$ and
-$\operatorname{Var}(eR+\rho)=\sigma_e^2+G'\Sigma_\beta G+2G'C$. If each
-completion also redraws $\beta$, the independent draw contributes the
-additional $G'\Sigma_\beta G/B$ term in @eq-vb. A flexible learner instead
-keeps its fitted index fixed across the $B$ point-estimate completions and
-uses the full-pipeline bootstrap to propagate its sampling variability.
-
-### A proved reference learner
-
-For a deterministic logistic-series learner, the conditions behind the
-general implication can be verified, and it becomes a theorem. This learner serves as a proof reference rather than the
-practical default. Let
-$$z_n(D,X)=\{1,D,P_n(X)'\}',\qquad
-\hat v_{-k}(D,X)=z_n(D,X)'\hat\beta_{-k},$$
-where the dictionary $P_n$ is fixed before observing $Y$ and contains
-functions of $X$ only. The implemented reference uses additive normalized
-Hermite polynomials and keeps $D$ as a mandatory, unpenalized linear term.
-The population logistic projection $\beta_n$ solves
-$$E[z_n\{Y-\Lambda(z_n'\beta_n)\}]=0,$$
-and we write $v_n=z_n'\beta_n$,
-$$
-A_n=E[\Lambda(v_n)\{1-\Lambda(v_n)\}z_nz_n'],\qquad
-a_n=E[R\,\partial_v\psi(v_n;v_0)z_n],
-$$
-$$
-\rho_n(W)=a_n'A_n^{-1}z_n\{Y-\Lambda(v_n)\},\qquad
-h_n(\beta)=E[R\{\psi(z_n'\beta;v_0)-v_0\}].
-$$
-
-The theorem uses six series-learner (SL) conditions. **(SL1)** The dictionary is
-deterministic, has dimension $q_n$, the eigenvalues of $A_n$ are bounded away
-from zero and infinity, and the largest eigenvalue of $E[z_nz_n']$ is
-bounded. **(SL2)** Uniformly over unit vectors $t$,
-$E|t'z_n|^4$ is bounded, $q_n^3/n\to0$, and
-$\max_i\|z_{n,i}\|=o_p\{(n/q_n)^{1/2}\}$.
-**(SL3)** The fold-specific logistic maximum-likelihood estimates exist
-uniquely with probability tending to one, so asymptotic separation is
-excluded. **(SL4)** The approximation is undersmoothed for the target:
-$\sqrt n\,h_n(\beta_n)\to0$ and
-$$\sqrt n\,E[|R|\{v_n(D,X)-v_0(D,X)\}^2]\to0.$$
-**(SL5)** $\rho_n$ obeys Lindeberg's condition,
-$\operatorname{Var}\{\rho_n(W)\}\to\tau^2<\infty$, and the adjustment
-nuisances satisfy (M3). **(SL6)** With fixed $K$, the fold partition is
-deterministic or drawn independently of the observations, and
-$$\max_{1\le k\le K}\bigl||I_k|/n - 1/K\bigr|\to0,$$
-in probability if the partition is random. These are standard series
-restrictions specialized
-to the residual-weighted functional. The rate and functional conditions are
-in the spirit of @newey1997series; bootstrap theory for semiparametric
-generalized additive models provides a related but different result
-[@hardle2004bootstrap].
-
-**Theorem S1 (series expansion).** *Under (A1), (M4), and (SL1)-(SL6), with
-fixed $K$ and fixed $B$, the deterministic series learner satisfies (M2)
-with influence $\rho_n$. Consequently*
-$$
-\sqrt n(\hat\theta_B-\theta_0)
-=J_\theta^{-1}\frac1{\sqrt n}\sum_{i=1}^n
-\{e_iR_i+\rho_n(W_i)+R_i\bar u_i\}+o_p(1),
-$$ {#eq-series-expansion}
-*and the limit is normal whenever the variance of the displayed triangular
-array converges.*
-
-*Proof.* Uniformly over the fixed number of folds, the fold training score
-and a mean-value expansion give
-$$
-\hat\beta_{-k}-\beta_n
-=A_n^{-1}\frac{1}{|I_k^c|}
-\sum_{i\in I_k^c}z_{n,i}\{Y_i-\Lambda(v_{n,i})\}
-+r_{n,k},\qquad
-\max_k|a_n'r_{n,k}|=o_p(n^{-1/2}).
-$$
-Expanding the logistic score at $\beta_n$ makes the remainder explicit.
-Conditions (SL1)-(SL3) give uniform convergence of the fold Hessians to
-$A_n$. The logistic third derivative is bounded, and the envelope and
-dimension rates in (SL2) make the quadratic score remainder
-$o_p(n^{-1/2})$. This step therefore does not assume the projected
-expansion.
-
-A Taylor expansion of $h_n$ at $\beta_n$ has derivative $a_n$ and quadratic
-remainder bounded by a constant times
-$E[|R|\{z_n'(\hat\beta_{-k}-\beta_n)\}^2]$. Conditions (SL1)-(SL2) make the
-fold-averaged remainder $o_p(n^{-1/2})$. Write $p_k=|I_k|/n$. For
-$i\in I_j$ the fold-averaged weight on $\rho_n(W_i)$ is $g_j/n$ with
-$g_j=\sum_{k\ne j}p_k/(1-p_k)$, and exactly balanced folds give $g_j=1$,
-so that
-$$
-\sum_k\frac{|I_k|}{n}\frac{\mathbf1\{i\in I_k^c\}}{|I_k^c|}=\frac1n.
-$$
-In general, because (SL6) makes the partition independent of the
-observations, $\operatorname{Var}\{|I_j|^{-1/2}\sum_{i\in I_j}\rho_n(W_i)\}$
-is $O(1)$ by the variance clause of (SL5), so
-$$
-\sqrt n\sum_i\Bigl(\frac{g_{j(i)}}{n}-\frac1n\Bigr)\rho_n(W_i)
-=\sum_{j=1}^K(g_j-1)\frac1{\sqrt n}\sum_{i\in I_j}\rho_n(W_i)
-=O_p\bigl(\max_j|g_j-1|\bigr),
-$$
-which is $o_p(1)$ under (SL6) since $p\mapsto p/(1-p)$ is continuous at
-$1/K$. Asymptotic balance therefore suffices; no rate on the imbalance is
-needed. The fold-averaged linear terms equal
-$n^{-1}\sum_i\rho_n(W_i)+o_p(n^{-1/2})$. Condition (SL4) removes the series
-approximation shift at the target scale. The generated-outcome Taylor
-remainder is also negligible by (SL4) and (M4). Finally, (M3) removes the
-adjustment-nuisance terms, while the completion split in @eq-split supplies
-$e_iR_i+R_i\bar u_i$. Lindeberg's theorem and (SL5) give the stated normal
-limit. $\square$
-
-The target-undersmoothing clause in (SL4) is essential. If only its
-quadratic-approximation clause holds, the same argument centers the estimator
-at the series-projection target
-$$\theta_n=\theta_0+J_\theta^{-1}h_n(\beta_n),$$
-not at $\theta_0$. The fixed degree-three implementation below measures that
-shift and finds it nonzero, so it checks the projected expansion around its
-own series target rather than instantiating the $\theta_0$-centered
-conclusion. Absent exact representation of the target, satisfying (SL4)
-requires a growing dictionary, and (SL2) then binds: its fourth-moment clause is dimension-free, whereas normalized
-Hermite polynomials have fourth moments growing exponentially in the
-polynomial degree, and local spline or Fourier bases normalized to keep the
-Gram eigenvalues bounded have fourth moments growing with $q_n$. Standard
-series analysis controls a growing basis envelope instead
-[@newey1997series]. Restating (SL2) in envelope form, and rechecking the
-Hessian and remainder rates that rest on it, is left open. Theorem S1 should
-therefore be read as a conditional result, not one with a demonstrated
-growing-dictionary instance.
-
-## Bootstrap propagation for the learner class
-
-Because the fixed-$B$ estimator is randomized, its bootstrap statement
-differs slightly from that for a deterministic asymptotically linear
-estimator. Let
-$\hat\theta_B^*$ rerun the entire procedure on an Efron resample, including
-fresh surrogate uniforms, and let
-$$\mu_n^*=E^*(\hat\theta_B^*\mid\mathcal D_n)$$
-average over resampling, any redrawn fold partition, and the fresh
-surrogate randomness. We add four machine-learning bootstrap (MB)
-conditions. **(MB1)** The
-projected learner expansion in (M2) is bootstrap stable: after centering, its
-resampled version has influence
-$n^{-1/2}\sum_i(N_i-1)\rho(W_i)+o_{P^*}(1)$ in outer probability.
-**(MB2)** The adjustment-nuisance rates in (M3) hold conditionally under
-resampling. **(MB3)** The integrated map $\psi$ has the dominated
-differentiability in (M4), and the centered randomized completion is
-conditionally $L_2(R^2)$ continuous in the fitted index. **(MB4)** Fold
-sizes are asymptotically balanced and the learner conditions hold uniformly
-over either a fixed partition independent of the observations or a fresh
-regular partition in every resample.
-
-The conditions clarify how two existing bootstrap results apply here.
-@tang2024 give general consistency conditions for estimators with
-machine-learned nuisances, and @lin2026 establish exchangeably weighted
-bootstrap validity for DML under its usual conditions. SUDO additionally
-requires the generated-outcome conditions (MB1) and (MB3). A raw
-inverse-transform draw need not be differentiable for every fixed uniform at
-a truncation boundary. Its integrated score $\psi$ must be differentiable,
-and conditional $L_2$ continuity controls the centered-draw remainder.
-
-**High-level implication M2 (full-pipeline bootstrap).** *Under (A1),
-(M1)-(M4), and (MB1)-(MB4), with fixed $K$
-and fixed $B$,*
-$$
-\sup_t\left|
- P^*\{\sqrt n(\hat\theta_B^*-\mu_n^*)\leq t\}
- -\Phi\{t/\sqrt{V_B^{\mathrm{ML}}}\}
-\right|\to_p0,
-\qquad
-n\,\operatorname{Var}^*(\hat\theta_B^*)\to_pV_B^{\mathrm{ML}}.
-$$ {#eq-ml-bootstrap}
-
-*Argument.* Apply the exchangeably weighted expansion to
-$eR+\rho(W)$ using (MB1)-(MB2). Conditional on each resampled observation,
-the fresh centered completion terms are independent across observations and
-draws, with limiting contribution $\sigma_u^2/B$; (MB3) permits replacing
-the fitted index in that term by its limit. The conditional Lindeberg
-central limit theorem and (MB4) give the same law for fixed or redrawn
-regular folds. Conditional second-moment convergence gives the variance
-statement.
-
-The unresolved bootstrap conjecture is that the implemented adaptive learners
-satisfy (MB1) and the conditional uniformity requirements in (MB2)-(MB4).
-The conditional Lindeberg and second-moment steps are likewise stated rather
-than formalized.
-
-**Theorem S2 (series full-pipeline bootstrap).** *Suppose the conditions of
-Theorem S1 hold uniformly on Efron resamples, the empirical Hessian and score
-moments in (SL1)-(SL3) converge conditionally, and (MB2)-(MB4) hold. Also
-suppose the empirical second moment of
-$e_iR_i+\rho_n(W_i)$ converges to its population counterpart and its maximum
-absolute value is $o_p(\sqrt n)$. Then the deterministic series learner
-satisfies (MB1). Consequently
-@eq-ml-bootstrap holds for this learner, for either fixed or independently
-redrawn regular folds.*
-
-*Proof.* On a resample with multiplicities $N_i$, expand each fold training
-score at its original-sample solution. Conditional convergence of the
-resampled Hessian and the same bounded logistic derivative used in Theorem
-S1 give
-$$
-\sum_k\frac{|I_k|}{n}
-\{h_n(\hat\beta_{-k}^*)-h_n(\hat\beta_{-k})\}
-=\frac1n\sum_{i=1}^n(N_i-1)\rho_n(W_i)+o_{P^*}(n^{-1/2})
-$$
-in outer probability. The balanced-fold identity from Theorem S1 applies
-conditionally for a fixed partition. For an independently redrawn regular
-partition, (MB4) makes the difference between its inclusion weights and
-$1/n$ negligible at the same scale. This proves (MB1) rather than assuming
-it. The exchangeably weighted central limit theorem applies to
-$eR+\rho_n$; (MB2) removes the adjustment-nuisance remainder, and (MB3)
-permits replacement of the fitted index in the centered completion term by
-its limit. Fresh completion terms contribute $\sigma_u^2/B$ conditionally.
-Conditional second-moment convergence yields bootstrap-variance
-consistency. $\square$
-
-The centering in @eq-ml-bootstrap affects the inferential conclusion. At fixed $B$,
-$\hat\theta_B-\mu_n^*$ contains $O_p(n^{-1/2})$ surrogate Monte Carlo noise.
-Consequently the usual claim with
-$\hat\theta_B^*-\hat\theta_B$ does not follow. The bootstrap standard
-deviation is still consistent and therefore supports the normal interval
-$\hat\theta_B\pm z_{1-\alpha/2}\hat s_{\mathrm{boot}}$. A centered
-bootstrap distribution may instead estimate $\mu_n^*$ by the mean of the
-outer replicates. Raw percentile and conventionally centered studentized
-intervals require either $B\to\infty$ fast enough to remove this centering
-gap or an additional randomized-estimator argument. We report them as
-empirical comparisons, not consequences of Implication M2.
-
-Neither (M2) nor its bootstrap analogue (MB1) has been proved separately for
-the implemented GAM, MARS, or neural-backfit algorithms. Implications M1 and
-M2 therefore isolate the learner-specific obligations; numerical performance
-does not replace them. Redrawing folds is also unnecessary when
-(MB4) holds, although it remains the implementation default because it
-propagates partition variability. At its Monte Carlo resolution, the paired
-check in @sec-numverify finds fixed and redrawn folds indistinguishable.
-
-## Moment properties
-
-**Proposition A2.** *Under (A1)-(A2), $E[\varphi] = 0$ at the truth and the
-moment is Neyman-orthogonal in the adjustment nuisances,
-$\partial_\ell E[\varphi] = \partial_m E[\varphi] = 0$. It is not orthogonal
-in $\beta$: $\partial_\beta E[\varphi] = G$ with blocks*
-
-$$G_{\beta_\eta} = E\bigl[c(\eta_0)\, \partial_{\beta_\eta} \eta\, R\bigr],
-\qquad
-G_{\kappa_k} = E\bigl[f(\kappa^0_k - \eta_0)\,(\mu_{k+1} - \mu_k)\, R\bigr].$$
-
-*Proof.* At the truth $S - \ell_0 - \theta_0 R = \xi$, and averaging over
-$Y \mid D, X$ makes $\xi \mid D, X \sim F$, so $E[\varphi] = E[\xi R] = 0$.
-The mean-zero statement holds only after that averaging; given $(W, \beta)$
-the draw has mean $e \ne 0$. The nuisance derivatives vanish by the tower
-property. The $\beta$ derivative is @eq-gblocks composed with
-$\partial_\beta \eta$. $\square$
-
-Because $R$ annihilates any function of $X$, profiling $\ell$ out of the
-moment leaves $G$ unchanged. This result covers both implementations:
-refitting $\hat\ell$ for every completion, or fitting it once from a plug-in
-completion and holding it fixed, as the binary estimator does. The appendix
-section on nuisances and draws explains this distinction. Proposition A2
-formalizes the claim in the body that the imputation model lies outside the
-orthogonality guarantee.
-
-## Asymptotic distribution at fixed $B$
-
-**Conjecture A1.** *Under (A1)-(A5), with
-$\bar\theta = B^{-1}\sum_b \hat\theta^{(b)}$,*
-
-$$\sqrt n(\bar\theta - \theta_0) \to_d N(0, V_B), \qquad
-V_B = J_\theta^{-2}\Bigl[\sigma_e^2 + G'\Sigma_\beta G + 2G'C
-  + \frac{G'\Sigma_\beta G + \sigma_u^2}{B}\Bigr],$$ {#eq-vb}
-
-*where $C = \operatorname{Cov}(eR, \operatorname{IF}_\beta)$.*
-
-*Heuristic derivation.* The $Z$-estimator expansion gives
-$\sqrt n(\hat\theta - \theta_0) = J_\theta^{-1}\sqrt n M_n(\theta_0, \cdot) + o_p(1)$,
-the sign following from $\partial_\theta E[\varphi] = -J_\theta$. Expanding
-around $(\beta_0, \ell_0, m_0)$, the adjustment-nuisance terms are $o_p(1)$
-by Proposition A2 plus cross-fitting plus the (A3) product rate, as in
-@chernozhukov2018. The $\beta$ term is
-$G'\sqrt n(\beta^{(b)} - \beta_0) + o_p(1)$, and
-$\beta^{(b)} - \beta_0 = (\hat\beta - \beta_0) + n^{-1/2} Z_b$ by (A5).
-Applying @eq-split separates the data-measurable score $e_i R_i$ from the
-draw noise; averaging over $b$ leaves parameter-draw and surrogate-draw
-terms with conditional variances $\Sigma_\beta / B$ and $\sigma_u^2 / B$.
-
-Two features of @eq-vb are important for interpretation. First, it is not
-the single-completion result plus an $O(1/B)$ correction because the leading
-term itself depends on $B$. A single completion carries the full sandwich
-$\sigma_e^2 + \sigma_u^2$ *and* twice the parameter contribution, once from
-$\hat\beta$'s own sampling error and once from the single draw around it,
-which is exactly what Rubin's $(1 + 1/B)$ factor exists to undo. As
-$B \to \infty$ the draw noise averages away and the leading term is
-$\sigma_e^2$, not $\sigma_e^2 + \sigma_u^2$. Second, the cross term $2G'C$
-is not sign-restricted because $\operatorname{IF}_\beta$ and the moment are
-built from the same data. Consequently, $V_B$ is not the DML sandwich plus a
-nonnegative imputation penalty. Pooling removes the draw noise from the
-sandwich and adds $G'\Sigma_\beta G + 2G'C$.
-
-## The pooled variance
-
-Rubin's total is $T = \bar W + (1 + 1/B) B_{\!*}$, but its two components
-behave differently. The within-draw term $\bar W$ averages a sandwich
-estimate over $n$ observations, so
-$n\bar W \to_p J_\theta^{-2}(\sigma_e^2 + \sigma_u^2)$. The between-draw
-term $B_{\!*}$ is the sample variance of $B$ draws. Writing
-$V_{\mathrm{draw}} = G'\Sigma_\beta G + \sigma_u^2$ for the per-draw
-variance, @eq-vb gives
-$$n B_{\!*} \to_d J_\theta^{-2}\, V_{\mathrm{draw}}\,\frac{\chi^2_{B-1}}{B-1}
-\qquad (n \to \infty,\ B \text{ fixed}),$$ {#eq-bstar}
-which is *not* a probability limit. With $B$ fixed, the between-draw term
-retains sample-variance randomness regardless of the sample size. It is
-conditionally unbiased for $J_\theta^{-2}V_{\mathrm{draw}}$, allowing the
-comparison below to be stated in expectation.
-
-Write $E_\Delta[\cdot] = E[\cdot \mid W_1, \dots, W_n]$ for the expectation
-over the imputation draws with the data held fixed, so that $E_\Delta[T]$ is
-still a random variable through the data.
-
-**Conjecture A2.** *Under (A1)-(A5), for fixed $B$,*
-$$n\,E_\Delta[T] - V_B \;\to_p\; 2 J_\theta^{-2}\bigl(\sigma_u^2 - G'C\bigr),$$
-*with $n\,T$ itself converging in distribution, not in probability, by
-@eq-bstar. Taking expectations over the data as well gives the same limit for
-the unconditional $n\,E[T] - V_B$, which is the form the Monte Carlo check
-below estimates, since each replication redraws both the sample and the
-imputations. As $B \to \infty$ the randomness in $B_{\!*}$ averages away and
-the statement strengthens to a probability limit for $T$ itself,*
-$$n\,T - V_\infty \;\to_p\; 2 J_\theta^{-2}\bigl(\sigma_u^2 - G'C\bigr),
-\qquad V_\infty = J_\theta^{-2}\bigl(\sigma_e^2 + G'\Sigma_\beta G + 2G'C\bigr).$$
-*Either way the $1/B$ terms cancel, so the discrepancy is free of $B$.
-Rubin's variance is asymptotically exact in expectation over the imputation
-draws if and only if $G'C = \sigma_u^2$, conservative in that sense when
-$G'C < \sigma_u^2$, and anti-conservative when $G'C > \sigma_u^2$.*
-
-At fixed $B$ this is a statement about the mean of $T$, not about $T$
-itself. By @eq-bstar, $n\,T$ retains a nondegenerate chi-square component,
-so $T$ is not ratio-consistent for $V_B/n$ even when the identity holds.
-That finite-$B$ randomness does not invalidate Barnard-Rubin inference,
-whose reference distribution exists precisely to absorb uncertainty in the
-between-draw variance; @sec-numverify measures how well it does so.
-
-*Heuristic derivation.* Substitute the probability limit of $n\bar W$ and
-the conditional mean of @eq-bstar into Rubin's total, then subtract
-@eq-vb. The $1/B$ terms cancel. The $B\to\infty$ statement additionally
-uses concentration of the between-draw sample variance.
-
-The joint law determines the appropriate reference distribution. Define
-$$
-V_{\mathrm{data}}=\sigma_e^2+G'\Sigma_\beta G+2G'C,\quad
-W_0=J_\theta^{-2}(\sigma_e^2+\sigma_u^2),\quad
-Q_0=J_\theta^{-2}(1+1/B)V_{\mathrm{draw}},
-$$
-and let $\nu=B-1$.
-
-**Conjecture A3 (fixed-$B$ reference law).** *Under (A1)-(A5),*
-$$
-\left\{\sqrt n(\bar\theta-\theta_0),\,nT\right\}
-\ \to_d\
-\left\{\sqrt{V_B}\,Z,\,
-W_0+Q_0\frac{X}{\nu}\right\},
-\qquad Z\sim N(0,1),\quad X\sim\chi^2_\nu,\quad Z\perp X.
-$$ {#eq-fixed-b-joint}
-*Consequently*
-$$
-\frac{\bar\theta-\theta_0}{\sqrt T}
-\ \to_d\
-\frac{\sqrt{V_B}\,Z}
-{\sqrt{W_0+Q_0X/\nu}}.
-$$ {#eq-fixed-b-reference}
-
-*Heuristic derivation.* The joint central limit theorem posited in
-Conjecture A1 writes the
-$b$th completed-data limit as
-$J_\theta^{-1}(A+Q_b)$, where
-$A\sim N(0,V_{\mathrm{data}})$ is common to the draws and the
-$Q_b\stackrel{\mathrm{iid}}{\sim}N(0,V_{\mathrm{draw}})$ are independent of
-$A$. Their sample mean enters $\bar\theta$ and their sample variance enters
-$B_{\!*}$. Normal sample means and sample variances are independent, while
-$n\bar W\to_pW_0$, which gives @eq-fixed-b-joint.
-
-The exact limiting critical value is therefore a quantile of a
-normal-over-shifted-chi-square mixture, not generally a Student $t$. It is
-obtained by solving
-$$
-E_X\!\left[
-2\Phi\!\left\{q_B
-\sqrt{\frac{W_0+Q_0X/\nu}{V_B}}\right\}-1
-\right]=1-\alpha.
-$$
-A convenient approximation matches the first two moments of the random
-denominator. With
-$$
-\mu_T=W_0+Q_0,\qquad
-\nu_S=\nu(\mu_T/Q_0)^2,
-$$
-the variance-calibrated Satterthwaite critical value is
-$q_S=\sqrt{V_B/\mu_T}\,t_{1-\alpha/2,\nu_S}$.
-Barnard-Rubin (BR) instead uses the observed
-$r=(Q_0X/\nu)/W_0$ and
-$\nu_{\mathrm{BR}}=\nu(1+1/r)^2$ in the limit. It is not exactly
-@eq-fixed-b-reference, but the comparison in @sec-numverify shows that it is
-close.
-
-The discrepancy need not have a fixed sign, and the calculation does not
-yield exactness. On a deliberately congenial testbed that isolates pooling
-from every other source of error (a correctly specified logistic imputation
-model, continuous treatment so both adjustment nuisances are exactly
-linear), all six quantities are available in closed form:
-
-| $\theta_0$ | $\sigma_e^2$ | $\sigma_u^2$ | $G'\Sigma_\beta G$ | $G'C$ | $\sigma_u^2 - G'C$ | $T/V$ at $B = 20$ |
-|---|---|---|---|---|---|---|
-| 1 | 1.269 | 2.021 | 4.077 | 1.954 | $+0.067$ | 1.014 |
-| 3 | 0.580 | 2.710 | 41.414 | 3.094 | $-0.384$ | 0.985 |
-
-The sign of the discrepancy flips with signal strength: on average $T$
-overstates the sampling variance by about 1.4% at $\theta_0 = 1$ and
-understates it by about 1.5% at $\theta_0 = 3$. The $T/V$ column compares
-$n\,E[T]$ with $V_B$, which is the quantity Conjecture A2 governs at fixed $B$;
-individual replications scatter around it according to @eq-bstar. Both
-discrepancies are asymptotic rather than finite-sample effects; they persist
-at $n = 20{,}000$ and, being free of $B$, do not shrink as $B$ grows. The
-mechanism is visible in the table. As the signal grows the
-observed $Y$ carries less information beyond the index, so $\sigma_e^2$
-falls while $\sigma_u^2$ and $G'C$ rise, and $G'C$ overtakes $\sigma_u^2$.
-This is the variance-side account of why inference is hardest at strong
-effect sizes, and it is separate from the bias-side pass-through argument in
-the body. The two must not be conflated. Rising $c$ explains why a *given*
-index misspecification survives more nearly intact; it cannot itself explain
-degradation under a correctly specified imputation model, because $c \to 1$
-is precisely the regime in which $\psi$ is closest to the identity and its
-linearization is most accurate. Under correct specification the degradation
-is in the variance components above and in imputation-model estimation
-error.
-
-The practical effect is small: a 1.5% variance error corresponds to roughly
-0.7% in a standard error, well within the Monte Carlo error of the coverage
-figures in @sec-sims. The theoretical conclusion is nevertheless important:
-proper draws plus Rubin's rules are not exactly variance-calibrated here.
-@sec-numverify reports the term-by-term Monte Carlo check of
-@eq-vb.
-
-**Implication for improper draws.** If $\beta^{(b)} \equiv \hat\beta$,
-the between-draw term loses the parameter contribution entirely, so $B_{\!*}$
-is conditionally unbiased for $J_\theta^{-2}\sigma_u^2$ alone and $n\,E[T]$
-falls short of $V_B$.
-The deficit is dominated by the imputation channel $G'\Sigma_\beta G$
-whenever $G \ne 0$ and the signal is not weak, though it is not exactly that
-quantity, since the cross term and the draw noise also enter. This is the
-0.92 versus 0.97 coverage gap in @tbl-ladder.
-
-## Bias under a misspecified imputation model
-
-The next proposition concerns an exogenous perturbation path: the data law
-is held fixed while the supplied index is displaced. It does not describe
-the pseudo-true coefficient of a misspecified fitted model, whose treatment
-and covariate errors are jointly determined by its estimating equations.
-
-**Proposition A3.** *Consider a local sequence of binary-treatment
-imputation models whose index error equals $\delta_D$ in the treated arm and
-$0$ in the control arm, with $\delta_D\to0$. The corresponding population
-SUDO target $\theta(\delta_D)$ satisfies*
-$$\theta(\delta_D) - \theta_0 = \bar c_1 \delta_D
-  + o(\delta_D), \qquad
-\bar c_1 = \frac{E[w\, c(\theta_0 + g_0)]}{E[w]}, \quad w = \operatorname{Var}(D \mid X).$$
-
-*Proof.* Differentiate the generated-outcome mean
-$E[S \mid D, X]$ with respect to the local index perturbation at zero.
-Proposition A1 gives derivative $c(\eta_0)$. Applying
-$J_\theta^{-1}E[\,\cdot\,R]$ and conditioning on $X$ with
-binary $D$, the moment weights the treated arm by $w$ and the control arm by
-$-w$; the control-arm error is zero by assumption, so only
-$c(\theta_0 + g_0)$ survives, and $J_\theta = E[w]$ supplies the
-denominator. $\square$
-
-Both restrictions matter. Write $\eta_d = \theta_0 d + g_0(X)$ and consider a
-local path whose treated- and control-arm index errors are
-$\varepsilon h_1(X)$ and $\varepsilon h_0(X)$. Conditioning
-$E[R\,\Delta_D]$ on $X$ gives $w(\Delta_1 - \Delta_0)$, so
-$$\theta(\varepsilon) - \theta_0
-= \varepsilon\,
-\frac{E\bigl[w\{c(\eta_1)h_1 - c(\eta_0)h_0\}\bigr]}{E[w]}
-+ o(\varepsilon).$$
-Proposition A3 is the case $h_1 = 1$, $h_0 = 0$, which is why the displayed
-$\bar c_1$ evaluates $c$ on the treated arm only. Taking $h_1 = a + h$ and
-$h_0 = h$ adds the first-order covariate-direction leak of @eq-leak to that
-treated-arm term, and the leak is nonzero because $c$ depends on $D$ through
-$\eta$ and so is not annihilated by projecting on $R$. For continuous $D$
-with index error $\delta_D D$ the multiplier is instead
-$\bar c_1 = E[c\{\theta_0 D + g_0(X)\} D R] / E[R^2]$, which is a different
-expression.
-@tbl-sensitivity is the empirical counterpart for the treatment direction,
-recovering the predicted slope $\bar c_1$.
-
-For a finite perturbation, define the arm-specific path derivative and its
-average
-$$
-c_d(t;h)=
-\left.\partial_v\psi(v;\eta_d)\right|_{v=\eta_d+t h},
-\qquad
-\bar c_d(h)=\int_0^1c_d(t;h)\,dt ,
-$$
-where $\psi(v;\eta_d)$ uses fitted index $v$ while the observed category is
-still generated at the true index $\eta_d$. At $h=0$,
-$c_d(0;0)=c(\eta_d)$ from Proposition A1. Write
-$\|a\|_w=\{E[wa^2]\}^{1/2}$ and $J_\theta=E[w]$.
-
-**Proposition A4 (covariate-leakage bound).** *Suppose $D$ is binary and the
-limiting imputation-index error is the same $h(X)$ in both arms. Then the
-population SUDO target has the exact covariate-direction bias*
-$$
-L_X(h)=J_\theta^{-1}
-E\!\left[w\,h\{\bar c_1(h)-\bar c_0(h)\}\right],
-$$ {#eq-leak-exact}
-*and hence*
-$$
-|L_X(h)|\leq
-J_\theta^{-1}\|h\|_w\,
-\|\bar c_1(h)-\bar c_0(h)\|_w .
-$$
-*Writing the first-order term as*
-$$L_X^{(1)}(h)=J_\theta^{-1}
-E[w\,h\{c(\eta_1)-c(\eta_0)\}],$$
-*the sharper local bound is*
-$$
-|L_X(h)-L_X^{(1)}(h)|
-\leq J_\theta^{-1}\|h\|_w\,
-\left\|
-\{\bar c_1(h)-c(\eta_1)\}
--\{\bar c_0(h)-c(\eta_0)\}
-\right\|_w .
-$$
-
-*Proof.* The fundamental theorem of calculus gives
-$\psi(\eta_d+h;\eta_d)-\eta_d=h\bar c_d(h)$. Conditioning
-$E[R\Delta_D]$ on $X$ gives
-$w(\Delta_1-\Delta_0)$, proving @eq-leak-exact. The two bounds are
-Cauchy-Schwarz, first on the full path-factor difference and then only on
-its deviation from the derivative at the truth. $\square$
-
-The bound is computable for a specified sensitivity perturbation $h$ and
-becomes a conservative sensitivity radius when $\|h\|_w$ is bounded. Under
-$\epsilon\leq m(X)\leq1-\epsilon$,
-$J_\theta\geq\epsilon(1-\epsilon)$ makes the overlap dependence explicit.
-The local remainder is second order when the path derivative is locally
-Lipschitz. Nothing forces the first-order term or its bound to be small
-relative to the treatment-direction contribution.
-
 # Appendix: simulation and application details {#sec-appendix}
 
 Each design draws a latent utility
-$U = \theta_0 D + g_0(X) + \varepsilon$ and converts it to an observed
+$Z = \theta_0 D + g_0(X) + \varepsilon$ and converts it to an observed
 category. Most designs use logistic $\varepsilon$; the exceptions are
 specified below. The designs vary the covariate structure, cutpoints, and
 fitted models; covariates remain standard normal throughout. The `R/` and
@@ -2049,25 +817,12 @@ All designs instantiate @eq-dgp with one of two covariate structures:
 | Binary ML | S5 | logistic | $(0)$ | 0.5, 3 | 1000, 2000 | 200 |
 | Ordinal flexible adjustment (@tbl-ordinal, bottom) | S5 | logistic | $(0, 2)$ | 1.0 | 1000, 2000 | 200 |
 | Link misspecification | S1 | Gumbel | $(0)$ or $(0, 2)$ | 1.0 | 5000 | 200 |
-| Sensitivity (@tbl-sensitivity) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 200 |
 | Black-box imputation | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 100 |
 | PL learner comparison (@tbl-pl-learners) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 50 |
-| Bayesian imputation (repository only) | S5$'$ | normal | $(0)$ | 1.5, 3 | 2000 | 200 |
 | DGP variation, continuous $D$ | S5, $D = 0.7\pi(X) + N(0,1)$ | logistic | $(0)$ or $(0, 2)$ | 1, 2.5 | 2000 | 200 |
-| DGP variation, interaction | S5 plus $X_1 X_2$ in $g_0$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
-| DGP variation, dimension | S5 with $p = 10$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
-| DGP variation, overlap | S5, treatment-assignment index $\pi(X)$ scaled $2.5\times$ | logistic | $(0)$ | 1, 2.5 | 2000 | 200 |
 
 : Data-generating processes. $\kappa$ lists the interior cutpoints, so
 $(0)$ is binary and a pair gives $J = 3$. {#tbl-dgp}
-
-S5$'$ is the probit analogue of S5 used for the Bayesian imputation model,
-whose binary machinery is probit: the systematic part is divided by
-$\mathrm{sd}(\text{logistic}) = \pi/\sqrt3$ before normal errors are added,
-which matches the event rates of S5 to within 0.006 and puts $\theta_0$ on
-the probit scale at $\theta_0/1.8138$. The $\theta_0$ column reports the
-logit-scale values for comparability. That design supports no table here;
-it is reported so the claim in the machine-learning section is checkable.
 
 **Models fitted.** The ladder uses $\mathrm{glm}(Y \sim D + X)$ as the
 imputation model with $B \in \{10, 25, 50\}$ draws (the table shows
@@ -2084,36 +839,25 @@ the ordinal case, matching `ordinal::clm` with a cloglog link. The analyst
 fits either logit (misspecified) or cloglog (correct). Holding the simple
 covariate structure fixed isolates error in the link.
 
-**Sensitivity ladder (@tbl-sensitivity).** The ladder starts from the oracle
-index and oracle partialling nuisances, then adds a known perturbation of
-size $\delta$ to one input: the outcome nuisance only (DML-1), both
-nuisances (DML-2), the index in the covariate direction (SUDO-X), or the
-index in the treatment direction (SUDO-D). Bias is traced against a common
-latent-scale root-mean-square error (RMSE) so the four are comparable. The
-fitted SUDO-D slope reproduces $\bar c_1$ (0.669 at
-$\theta_0 = 1.5$, 0.861 at $\theta_0 = 3$) to within 0.001, which is the
-independent check on @eq-ce.
-
 **Partially-linear imputation models.** The original black-box result uses
-$\hat V = \hat\alpha D + \hat f(X)$ with $\hat f$ a single-hidden-layer
+$\hat\eta = \hat\alpha D + \hat f(X)$ with $\hat f$ a single-hidden-layer
 neural net (`nnet`, `size = 4`, `decay = 0.3`, five backfitting iterations,
 selected on target-level Monte Carlo bias) and 100 full-pipeline
-bootstrap resamples.
-The common adaptive-learner comparison uses 50 resamples for each arm. Its
-GAM has an unpenalized linear treatment term and smooths of the five
-covariates. The MARS fit builds degree-two bases from $X$ only (`nk = 21`,
-penalty 3), then jointly estimates those basis coefficients and a mandatory
-linear treatment coefficient by logistic regression. This construction is needed because
-`earth::linpreds` alone still permits the named predictor in interaction
-terms. The theorem-reference series is evaluated separately. It uses
-additive normalized Hermite polynomials through degree three, a dictionary
-fixed before observing $Y$, and a separate mandatory linear treatment term.
+bootstrap resamples. The common comparison uses 50 resamples per arm. The
+GAM includes a linear treatment term and smooths of $X$. MARS builds
+degree-two bases from $X$ only before a joint logistic fit with mandatory
+linear $D$.
 
-**Wine application.** Full model `ordinal::clm` on $D$ and either the raw
-covariates (linear) or $\mathrm{ns}(X_k, 3)$ (spline); partialling nuisances
-$E[S \mid X]$ and $E[D \mid X]$ by `mgcv::gam` (Gaussian for the continuous
-$D$); five-fold cross-fitting; $B = 50$ proper draws; Rubin pooling. Volatile
-acidity is standardized.
+**Wine application.** Red and white wines are fit separately. The outcome
+levels are 3--8 for red wine and 3--9 for white. Volatile acidity is the
+standardized treatment. The ten standardized adjustment variables are fixed
+acidity, citric acid, residual sugar, chlorides, free and total sulfur
+dioxide, density, pH, sulphates, and alcohol. The proportional-odds logit
+full model is `ordinal::clm` with index
+$\alpha D+\beta^\top X$ (linear) or
+$\alpha D+\sum_k \mathrm{ns}(X_k,3)$ (spline). Partialling nuisances
+$E[S \mid X]$ and $E[D \mid X]$ use `mgcv::gam` (Gaussian for continuous
+$D$), with five-fold cross-fitting, $B=50$ proper draws, and Rubin pooling.
 
 ## Nuisances, cross-fitting, and draws
 
@@ -2123,17 +867,10 @@ sample the full-model parameters from $N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\
 (thresholds included for `clm`) before each completion. Diagnostic draws use
 a random number generator (RNG) stream independent of the estimation draws.
 
-One algorithmic detail differs by outcome type. Because the surrogate $S$
-changes with every draw, its nuisance $\hat\ell$ can also be refit each time.
-Binary experiments found this refitting negligible, so the binary estimator
-fits $\hat\ell$ once on a plug-in completion and reuses it. The ordinal
-nuisance-isolation ladder gives a different result: holding $\hat\ell$ fixed
-nearly doubles the within-draw component and accounts for the stage-5
-conservatism. The corrected ordinal estimator therefore cross-fits
-$\hat\ell$ separately for every completion. The full validation with
-$B=25$ and 200 replications attains 0.960 coverage. Refitting costs roughly
-$B$ times as much for the outcome nuisance, so the less expensive binary
-behavior is retained where it has been validated.
+Binary experiments found per-completion refitting of $\hat\ell$ negligible,
+so the binary estimator reuses a plug-in fit. The ordinal estimator refits
+$\hat\ell$ for every completion because reuse inflated its within-draw
+variance.
 
 ## Monte Carlo precision
 
@@ -2141,221 +878,6 @@ Coverage is a binomial proportion, so its Monte Carlo standard error at a
 true 0.95 is about $\sqrt{0.95 \cdot 0.05 / R}$: 0.010 at $R = 500$
 replications, 0.015 at $R = 200$, and 0.022 at $R = 100$. Per-cell bias and
 coverage Monte Carlo standard errors are in the committed result files.
-
-# Supplement: numerical verification of the theory {#sec-numverify}
-
-Every closed-form expression in @sec-theory is checked through an independent
-numerical route. The corresponding scripts are in the project repository and
-assert their own pass conditions.
-
-## Pass-through derivatives (Proposition A1)
-
-`R/theory_ordinal_passthrough.R` computes $\psi$ by quadrature and compares
-the analytic index and threshold derivatives of @eq-gblocks against central
-differences, for $J = 2, 3, 4$ under logit, probit, and both Gumbel
-conventions. Maximum discrepancy across all configurations is $3\times10^{-10}$
-for the index block and $4\times10^{-10}$ for the threshold block; the
-identity $c = 1 - \sum_k \partial_{\kappa_k}\psi$ holds to $10^{-15}$. A
-Monte Carlo check confirms `complete_surrogate()` samples the map it should
-($|z| < 4$ at $4\times10^5$ draws). The analytic map therefore matches the
-implemented estimator.
-
-At $e = 0$ under a logit, the threshold-placement effect discussed in
-@sec-theory is:
-
-| $\kappa$ | $(0)$ binary | $(-0.5, 0.8)$ | $(-1, 0.2, 1.3)$ | $(\mp 0.5)$ | $(\mp 1.5)$ | $(\mp 3)$ | $(\mp 6)$ |
-|---|---|---|---|---|---|---|---|
-| $c(0)$ | 0.307 | 0.157 | 0.090 | 0.175 | 0.223 | 0.636 | 0.966 |
-
-The final four entries all use $J = 3$. Widening the three-category
-partition moves $c$ from well below the binary value to nearly 1.
-
-## Deterministic-series expansion (Theorems S1 and S2)
-
-`R/theory_pl_series.R` checks the proof-specific quantities without using
-the fitted SUDO estimate as its own benchmark. It computes the population
-logistic-series projection and its influence function by product
-Gauss-Hermite quadrature, then compares them with independently fitted
-five-fold estimates. The implemented dictionary uses normalized additive
-Hermite polynomials through degree three and a separate mandatory linear
-treatment term.
-
-The population projection shifts the SUDO target by $-0.00082$ at
-$\theta_0=1.5$ and $-0.00167$ at $\theta_0=3$. These small values are
-measured approximation errors for this design, not a substitute for (SL4).
-At $n=4000$, the empirical standard deviation divided by the
-influence-function prediction is 0.989 and 0.985 at the two signals. The
-root-mean-square expansion remainder divided by the predicted standard
-deviation falls from 0.439 to 0.198 at the moderate signal and from 0.623 to
-0.289 at the strong signal as $n$ increases from 1000 to 4000. The
-strong-signal remainder is visibly slower to disappear, consistent with the
-near-separation concern isolated in (SL3).
-
-For 30 datasets at $n=2000$ and 50 Efron resamples per dataset, the bootstrap
-standard-deviation ratio to the weighted influence expansion is
-1.015 with fixed folds and 1.014 with redrawn folds at $\theta_0=1.5$; the
-corresponding ratios are 1.076 and 1.077 at $\theta_0=3$. All 3000 paired
-bootstrap resamples are complete. These checks validate the algebra and
-finite-sample behavior of the theorem reference. Theorems S1 and S2 provide
-the proof; the simulation does not.
-
-## Machine-learning expansion (Implication M1)
-
-`R/theory_ml_expansion.R` compares the exact conditional generated-outcome
-shift $\psi(\hat v;v_0)-v_0$ with its linear approximation
-$c(v_0)(\hat v-v_0)$ for GAM, MARS, and neural backfitting. It uses the S5
-design, $\theta_0\in\{1.5,3\}$, $n\in\{1000,2000\}$, and 50 replications per
-cell. The analytic derivative agrees with central differences to
-$7.2\times10^{-11}$. Across all 12 learner cells, the mean absolute
-pointwise Taylor remainder divided by mean squared index error ranges from
-0.016 to 0.027. At $n=2000$, the absolute residual-projected remainder ranges
-from 0.0015 to 0.0107, against a first-order scale of 0.063 to 0.138. The
-generated-outcome part of (M1) is therefore second order in the fitted-index
-error in every implemented design. This check does not establish the
-learner-specific asymptotic representation in (M2).
-
-## Machine-learning bootstrap (Implication M2)
-
-`R/theory_ml_bootstrap.R` compares fixed and redrawn folds on the same 30
-generated datasets for each learner and signal, with 15 outer resamples and
-15 completions per resample. The fixed/redrawn mean-SE ratio ranges from
-0.97 to 1.08, and every paired bias difference is smaller than its
-prespecified Monte Carlo tolerance. At this resolution, redrawing folds is
-not empirically necessary in this design.
-
-The uncertainty hierarchy depends on signal strength but is consistent
-across learners. At $\theta_0=1.5$, the within-fold SE is 0.90 to 0.93 of the
-full-pipeline SE; at $\theta_0=3$ it is only 0.75 to 0.77. Holding the fitted
-index fixed reduces the SE further, to 0.75 to 0.92 of the within-fold
-value. The within-fold method therefore does not reproduce the improper
-method. It captures some learner uncertainty but misses the data, nuisance,
-and fold layers propagated by the full pipeline. Normal coverage is 0.93 to
-0.97 across the six cells. Percentile coverage is 0.87 to 0.97 and
-conventionally centered studentized coverage is 0.80 to 0.93, which supports
-the fixed-$B$ centering qualification rather than either alternative as a
-default. With 30 replications, coverage Monte Carlo standard errors are
-about 0.03 to 0.07. These checks support the implications of (MB4) and the
-variance ordering, but do not establish learner-specific condition (MB1).
-
-## The variance decomposition (Conjectures A1 and A2)
-
-`R/theory_variance_terms.R` evaluates $J_\theta$, $\sigma_e^2$, $\sigma_u^2$,
-$G$, $\Sigma_\beta$ and $C$ in closed form on the congenial testbed by
-product-grid quadrature, then compares @eq-vb against 4000 replications at
-$n = 20{,}000$ for $B \in \{1, 2, 5, 20\}$ and $\theta_0 \in \{1, 3\}$. All
-eight cells agree within 1.2 Monte Carlo standard errors. Comparing across
-$B$ is what identifies the individual terms; a single pooled variance ratio
-cannot, because its Monte Carlo error is the same size as the 1 to 2 percent
-effect being measured, which is why the earlier ratio-based reading of these
-simulations was inconclusive rather than confirmatory.
-
-The fixed-$B$ spread of @eq-bstar is confirmed directly: at $\theta_0 = 1$,
-$B = 20$, $n = 20{,}000$, the observed standard deviation of $nT$ across
-replications is 2.13 against a mean of 9.73, while @eq-bstar predicts
-$(1 + 1/B)V_{\mathrm{draw}}\sqrt{2/(B-1)} = 2.08$. The residual spread in the
-reported variance is therefore attributable to the between-draw sample
-variance rather than estimation error, and it does not shrink with $n$.
-
-`R/theory_fixed_b_inference.R` evaluates @eq-fixed-b-reference at
-$B\in\{5,10,25,50,100\}$ and then checks it with 1,000 independent samples
-at $n=5{,}000$. Prediction and empirical coverage differ by at most 0.012
-across all 40 comparisons in @tbl-fixed-b. Normal inference is inadequate
-at small $B$ and strong signal; Barnard-Rubin is close to the exact mixture,
-and the predicted calibrated Satterthwaite coverage is within 0.006 of 0.95
-in every cell.
-
-```{r}
-#| label: tbl-fixed-b
-#| echo: false
-#| tbl-cap: "Fixed-imputation 95% coverage, theory prediction / finite-sample estimate; $n=5000$, 1000 replications."
-fb <- read_result("theory_fixed_b_inference.csv")
-pair_cov <- function(pred, emp) sprintf("%.3f / %.3f", pred, emp)
-table_data <- data.frame(
-  `$\\theta_0$` = nn(fb$theta0, 0),
-  `$B$` = fb$B,
-  Normal = pair_cov(fb$coverage_normal_pred, fb$coverage_normal_emp),
-  `Barnard-Rubin` = pair_cov(fb$coverage_br_pred, fb$coverage_br_emp),
-  Satterthwaite = pair_cov(
-    fb$coverage_satterthwaite_pred,
-    fb$coverage_satterthwaite_emp
-  ),
-  Mixture = pair_cov(fb$coverage_mixture_pred, fb$coverage_mixture_emp),
-  check.names = FALSE
-)
-knitr::kable(table_data, align = c("r", "r", "r", "r", "r", "r"))
-```
-
-The practical default remains Barnard-Rubin with at least 25 imputations. It
-requires only the usual pooled quantities and is close to the exact mixture,
-whereas the calibrated alternatives require consistent estimates of
-$V_B$, $W_0$, and $Q_0$. Increasing $B$ reduces the random chi-square
-component but does not remove Conjecture A2's systematic Rubin discrepancy.
-For a flexible imputation learner, the full-pipeline bootstrap normal
-interval remains the corresponding default; the percentile and conventional
-studentized comparisons in @tbl-ml-bootstrap do not improve it.
-
-## Covariate-direction leakage (Proposition A4)
-
-`R/theory_covariate_leakage.R` evaluates the exact path identity and both
-bounds with two million population draws from the stage-7 interaction
-design. It omits $\lambda X_1X_2$ for
-$\lambda\in\{\mp0.5,\mp1,\mp1.5\}$ at $\theta_0\in\{1,2.5\}$. The global
-and local bounds cover the exact covariate leak in all 12 cells. The local
-bound is 2.82 to 7.79 times the absolute leak, while the absolute Taylor
-remainder divided by $\lambda^2$ is 0.0027 to 0.0091. It is therefore
-conservative but has the correct second-order scale in this symmetric
-interaction design.
-
-The calculation also corrects the earlier interpretation of stage 7.
-Omitting the interaction shifts the pseudo-true logistic treatment
-coefficient even though $D$ is constrained to enter linearly. At
-$\lambda=1$, the population decomposition is:
-
-| $\theta_0$ | Covariate leak | Induced treatment component | Total prediction | Stage-7 bias |
-|---|---:|---:|---:|---:|
-| 1.0 | -0.015 | -0.021 | -0.036 | -0.050 |
-| 2.5 | -0.013 | -0.068 | -0.081 | -0.147 |
-
-The population calculation is deliberately simpler than the fitted
-additive GAM and understates the observed magnitude, especially at strong
-signal. Its differences from stage 7, 0.014 and 0.066, are inside the
-prespecified Monte Carlo tolerances of 0.030 and 0.075. More importantly,
-the decomposition establishes that the interaction experiment is not a pure
-covariate-leakage arm: the induced treatment-direction channel is at least
-as large.
-
-Both closed forms behind these quantities rest on one identity,
-$p(1-p)(\mu_+ - \mu_-) = H(p)$ for the logistic law, which yields both
-$c(e) = 1 - H(F(e))$ and $C = \Sigma_\beta(A - G)$ with $A = E[zR]$. It is
-verified pointwise by quadrature to $8\times10^{-16}$.
-
-The ordinal counterpart is checked by
-`R/theory_ordinal_variance_terms.R` on a correctly specified
-three-category cumulative-logit design with continuous treatment and exactly
-linear partialling nuisances. The calculation includes both threshold
-derivatives in $G$ and matches the fixed-$B$ sampling variance and expected
-Rubin variance within 2.3 Monte Carlo standard errors in every cell at
-$n=8{,}000$, 500 replications, $B\in\{1,2,5,20\}$, and
-$\theta_0\in\{1,2.5\}$. At $B=20$, the predicted $T/V$ is 1.028 and 0.980,
-respectively. The ordinal threshold machinery therefore changes the same
-small Rubin discrepancy identified in the binary testbed but does not explain
-the much larger stage-5 gap.
-
-`R/theory_ordinal_nuisance_ladder.R` then changes one partialling component at
-a time on the exact stage-5 DGP, using common samples, folds, imputation fits,
-parameter draws, and surrogates across arms. At $n=2{,}000$, $B=10$, and 100
-replications, the current fixed-$\hat\ell$ arm has empirical variance 0.01380
-and mean $T=0.02077$, while refitting $\hat\ell$ on every draw has empirical
-variance 0.01375 and mean $T=0.01295$. Thus the point estimator is unchanged
-but $T/V$ falls from 1.505 to 0.942. The difference is almost entirely in
-$\bar W$, which falls from 0.01666 to 0.00876; the between-draw component is
-unchanged. This isolates reuse of the plug-in outcome nuisance as the source
-of the stage-5 variance inflation. `R/stage5r_ordinal_refit.R` performs the
-full correction check at $n=2{,}000$, $B=25$, and 200 replications. Bias is
-0.016 (Monte Carlo SE 0.007), coverage is 0.960 (Monte Carlo SE 0.014), and
-$T/V=1.214$ (Monte Carlo SE 0.122), satisfying the stage's bias, coverage,
-and variance-calibration criteria. The corrected per-draw refit is therefore
-the ordinal default.
 
 # References
 
