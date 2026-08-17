@@ -1,0 +1,4 @@
+"estimator","worst_abs_bias","mean_abs_bias","all_bias_gates","max_fail_rate","selected","screen_pass"
+"pit_affine_tilt",0.0117236906642887,0.00800473666829235,TRUE,0,TRUE,TRUE
+"pit_intercept_tilt",0.0196946707383385,0.00955671621134938,TRUE,0,FALSE,TRUE
+"targeted_projection",0.0197131490930326,0.00956193881099532,TRUE,0,FALSE,TRUE

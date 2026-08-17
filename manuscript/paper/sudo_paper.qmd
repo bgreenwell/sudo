@@ -29,12 +29,15 @@ abstract: |
   full-pipeline bootstrap serves the same role for flexible learners.
   Simulations show nominal coverage in the validated binary and ordinal
   designs and also expose the method's main limitation: error in the
-  imputation distribution is not removed by DML orthogonality. SUDO matches,
-  rather than dominates, tailored binary estimators. Its clearest use is for
-  ordinal outcomes, where the same construction targets a latent
-  proportional-odds coefficient without a new outcome-specific score. A wine
-  quality application illustrates the method. An oracle experiment validates
-  the count completion, while fitted count learners remain unpromoted.
+  imputation distribution is not removed by DML orthogonality. For a
+  coefficientless penalized additive learner, scalar recalibration followed
+  by SUDO removes treatment-regularization bias in three additive designs;
+  a high-dimensional boundary fails. SUDO matches, rather than dominates,
+  tailored binary estimators. Its clearest use is for ordinal outcomes, where
+  the same construction targets a latent proportional-odds coefficient
+  without a new outcome-specific score. A wine quality application
+  illustrates the method. An oracle experiment validates count completion,
+  while fitted count learners remain unpromoted.
 format:
   arxiv-pdf:
     keep-tex: false
@@ -428,6 +431,65 @@ learners: impose a scalar-index structure suited to the estimand, tune on
 target-level simulation bias, and require coverage validation before
 promotion.
 
+## Scale-calibrated SUDO
+
+Regularization may preserve the shape of a fitted index while shrinking its
+location and scale. We correct that low-dimensional error before completion.
+Let a distribution learner supply an out-of-fold logit index
+$\hat\eta(D,X)$; the estimator never reads a treatment coefficient from the
+learner. On the training observations for a held-out fold, fit the logistic
+recalibration
+$$
+P(Y=1\mid\hat\eta)=\Lambda(a+b\hat\eta)
+$$ {#eq-scale-calibration}
+and apply $\tilde\eta=a+b\hat\eta$ to the held-out index. Treatment and its
+residual do not enter @eq-scale-calibration. This is ordinary scalar
+recalibration, not treatment targeting.
+
+For binary logit, write $p=\Lambda(\tilde\eta)$ and
+$h(p)=-p\log p-(1-p)\log(1-p)$. The Rao-Blackwell surrogate is
+$$
+\tilde S
+=\tilde\eta+
+  \frac{h(p)\{Y-p\}}{p(1-p)}.
+$$ {#eq-rb-binary}
+It equals the conditional mean of a truncated-logistic surrogate and removes
+completion Monte Carlo noise. Randomized completion remains available by
+drawing the logistic reference quantile inside the fitted Bernoulli CDF jump.
+
+**Algorithm 1: cross-fitted scale-calibrated SUDO.**
+
+1. Split the observations into $K$ folds. Fix all tuning rules before the
+   confirmatory sample is analyzed.
+2. For each held-out fold, fit the distribution learner and treatment
+   nuisance $m(X)=E(D\mid X)$ without that fold. Obtain scalar-index
+   predictions for the training and held-out observations.
+3. Estimate $(a,b)$ from @eq-scale-calibration on training observations and
+   apply the fitted map to the held-out index.
+4. Construct training and held-out surrogates with @eq-rb-binary. Fit
+   $\ell(X)=E(\tilde S\mid X)$ on the training observations and predict it in
+   the held-out fold.
+5. Stack the held-out predictions and compute @eq-theta with
+   $S=\tilde S$. For randomized completion, repeat steps 4 and 5 for each
+   draw before pooling the treatment estimates.
+6. For a flexible distribution learner, resample the observations and rerun
+   every preceding step. Use the standard deviation of the bootstrap
+   estimates in the normal interval
+   $\hat\theta\mathbin{\pm}1.96\widehat{\operatorname{sd}}_{\!*}$.
+
+The reason for the calibration is exact in a useful special case. If, on a
+new population, $\eta_0(D,X)=a_0+b_0\hat\eta(D,X)$ and scalar recalibration
+consistently estimates $(a_0,b_0)$, then @eq-rb-binary gives
+$E(\tilde S\mid D,X)=\eta_0(D,X)$. Population FWL therefore recovers
+$\theta_0$. With a remaining error $r(D,X)$, bias depends on its projection
+onto $D-m_0(X)$ after completion. Scalar calibration does not control an
+arbitrary $r$ and is not a substitute for target-level validation.
+
+An optional affine fluctuation adds a treatment-residual direction to
+@eq-scale-calibration. It is useful as a sensitivity analysis, but it partly
+targets the treatment effect before completion. The scale-only form is the
+cleaner test of whether the surrogate and FWL steps add information.
+
 # Simulation study {#sec-sims}
 
 The simulations draw independent standard-normal covariates, assign treatment
@@ -586,6 +648,80 @@ by cross-validated predictive risk. Prediction error is therefore a
 diagnostic, not a tuning target for the treatment coefficient. The validated
 configurations were screened on target-level Monte Carlo bias and evaluated
 on separate seeds; a data-only selection rule remains open.
+
+**Coefficientless additive learner.** We next fit the binary index with
+GAMSEL [@chouldechova2015], constraining $D$ to be linear while allowing each
+$X_j$ to enter linearly, smoothly, or not at all. Estimation uses only index
+predictions. In the three $p=80$ additive designs, the full affine-calibrated
+SUDO pipeline passes every prespecified bias, coverage, SD-to-SE, and
+bootstrap-success gate (@tbl-calibrated-sudo). Ordinary SUDO retains material
+regularization bias.
+
+```{r}
+#| label: tbl-calibrated-sudo
+#| echo: false
+#| tbl-cap: "Coefficientless GAMSEL learner with treatment coefficient 0.75. Full-affine results use 50 fresh datasets and 99 full-pipeline bootstrap resamples."
+s16g <- read_result("stage16g_affine_calibrated_sudo_coverage.csv")
+s16h <- read_result("stage16h_calibration_ablation.csv")
+cell_order <- c("randomized", "confounded", "high_signal")
+full <- s16g[
+  s16g$estimator == "affine_calibrated_sudo",
+  c("cell", "bias", "coverage", "sd_to_se")
+]
+ordinary <- s16g[
+  s16g$estimator == "sudo", c("cell", "bias")
+]
+row_for <- function(x, cell) x[match(cell, x$cell), ]
+table_data <- do.call(rbind, lapply(cell_order, function(cell) {
+  f <- row_for(full, cell)
+  o <- row_for(ordinary, cell)
+  data.frame(
+    Design = c(randomized = "Randomized", confounded = "Confounded",
+               high_signal = "High signal")[[cell]],
+    `Ordinary bias` = sg(o$bias),
+    `Calibrated bias` = sg(f$bias),
+    Coverage = nn(f$coverage),
+    `SD/Mean SE` = nn(f$sd_to_se),
+    check.names = FALSE
+  )
+}))
+knitr::kable(table_data, align = c("l", rep("r", 4)))
+```
+
+```{r}
+#| label: tbl-scale-ablation
+#| echo: false
+#| tbl-cap: "Scale-only mechanism screen on separate seeds. Entries are bias over 10 fresh datasets."
+scale_direct <- s16h[
+  s16h$estimator == "pit_affine_scale", c("cell", "bias")
+]
+scale_sudo <- s16h[
+  s16h$estimator == "scale_calibrated_sudo", c("cell", "bias")
+]
+table_data <- do.call(rbind, lapply(cell_order, function(cell) {
+  d <- row_for(scale_direct, cell)
+  s <- row_for(scale_sudo, cell)
+  data.frame(
+    Design = c(randomized = "Randomized", confounded = "Confounded",
+               high_signal = "High signal")[[cell]],
+    `Direct read-off` = sg(d$bias),
+    `Scale-calibrated SUDO` = sg(s$bias),
+    check.names = FALSE
+  )
+}))
+knitr::kable(table_data, align = c("l", "r", "r"))
+```
+
+The scale-only ablation isolates SUDO's contribution. Its biases are
+$+0.014$, $+0.009$, and $-0.009$ across the three designs. Under confounding,
+reading a coefficient from the scale-calibrated index has bias $+0.039$,
+while completion and FWL reduce it to $+0.009$. Tilt-only calibration fails
+under confounding and high signal. Thus treatment-directed targeting is not
+needed for the point result. Scale-only coverage has not yet been validated,
+so @tbl-calibrated-sudo and @tbl-scale-ablation report full-affine coverage
+and scale-only bias separately. At $p=500$, full-affine calibrated SUDO has
+bias $-0.048$ and fails the point gate. This is the observed boundary, not a
+promoted design.
 
 With continuous treatment, bias remains below 1.5% of the truth in the binary
 and ordinal designs. Strong-signal coverage is less stable, reinforcing the
@@ -763,11 +899,18 @@ the surrogate. Partial linearity prevents treatment-by-covariate interactions
 but does not guarantee small treatment bias. Each new learner and outcome
 family therefore needs target-level simulation and coverage checks.
 
-The validated contribution is currently binary and ordinal. The count oracle
-bridge shows that the completion calculation extends cleanly to Poisson and
-negative-binomial laws, but the fitted count learner did not pass promotion.
-The next methodological need is stable distribution learners and data-driven
-tuning rules that control target bias.
+Scalar recalibration addresses one common failure mode: a learner may recover
+the index shape but shrink its location and scale. In the additive GAMSEL
+experiment, scale-only recalibration followed by SUDO passes all point-bias
+gates without using a treatment direction. The full affine version also
+passes full-pipeline coverage. Neither result implies protection from
+arbitrary index error; the $p=500$ boundary fails.
+
+The validated contribution is binary and ordinal, including a calibrated
+coefficientless binary learner. The count oracle bridge shows that completion
+extends cleanly to Poisson and negative-binomial laws, but the fitted count
+learner did not pass promotion. Full coverage validation of scale-only
+calibrated SUDO remains the next binary inference check.
 
 # Data and software
 
@@ -778,7 +921,8 @@ and the per-completion ordinal outcome-nuisance refit. The partially-linear
 machine-learning imputation learners and the full-pipeline bootstrap are
 implemented in R, which is also where every method is prototyped and
 validated before release. Count and flexible ordinal adapters remain R-only
-until their fitted-learner confirmation stages pass. The open-source
+until their fitted-learner confirmation stages pass. Scale-calibrated SUDO
+also remains R-only pending its own coverage stage. The open-source
 repository contains the code and committed result files behind every table
 and figure under the MIT License:
 <https://github.com/bgreenwell/sudo>.
@@ -819,6 +963,7 @@ All designs instantiate @eq-dgp with one of two covariate structures:
 | Link misspecification | S1 | Gumbel | $(0)$ or $(0, 2)$ | 1.0 | 5000 | 200 |
 | Black-box imputation | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 100 |
 | PL learner comparison (@tbl-pl-learners) | S5 | logistic | $(0)$ | 1.5, 3 | 2000 | 50 |
+| Calibration (@tbl-calibrated-sudo) | $p=80$ additive | logistic | $(0)$ | 0.75 | 3000 | 50 |
 | DGP variation, continuous $D$ | S5, $D = 0.7\pi(X) + N(0,1)$ | logistic | $(0)$ or $(0, 2)$ | 1, 2.5 | 2000 | 200 |
 
 : Data-generating processes. $\kappa$ lists the interior cutpoints, so
@@ -847,6 +992,21 @@ bootstrap resamples. The common comparison uses 50 resamples per arm. The
 GAM includes a linear treatment term and smooths of $X$. MARS builds
 degree-two bases from $X$ only before a joint logistic fit with mandatory
 linear $D$.
+
+**Calibration experiment.** The calibration designs use $p=80$ independent
+standard-normal covariates and
+$$
+g_0(X)=0.65X_1+0.55(X_2^2-1)+0.45X_3-0.35(X_4^2-1)
+       +0.30X_5-0.25X_6.
+$$
+Treatment is $N(0,1)$ in the randomized design. In the confounded design,
+$D=m_0(X)+N(0,1)$ with
+$m_0(X)=0.50X_1-0.40X_3+0.30(X_2^2-1)$. The high-signal design uses
+$D\sim N(0,4)$. Outcomes follow
+$Y\sim\operatorname{Bernoulli}[\Lambda\{0.75D+g_0(X)\}]$.
+GAMSEL uses cubic candidate smooths for $X$, a linear treatment term, and
+cross-validated binomial deviance. Five outer and five inner folds are used.
+The point ablation uses separate seeds from tuning and coverage.
 
 **Wine application.** Red and white wines are fit separately. The outcome
 levels are 3--8 for red wine and 3--9 for white. Volatile acidity is the
