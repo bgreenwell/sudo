@@ -1,5 +1,5 @@
 ---
-title: "Surrogate-Assisted Double Machine Learning: A Uniform Interface for Discrete Outcomes"
+title: "Surrogate-Assisted Double Machine Learning for Discrete Outcomes"
 author:
   - name: Brandon M. Greenwell
     email: greenwbm@ucmail.uc.edu
@@ -18,26 +18,25 @@ author:
 authorcols: true
 date: today
 abstract: |
-  Regression on a discrete label generally targets the wrong scale for a
-  cumulative-link or log-mean effect. Surrogate-Assisted Double Machine
-  Learning (SUDO) first completes each observed category to a continuous
-  surrogate using a fitted conditional CDF, then applies ordinary
-  partialling-out. If the fitted distribution is correct, randomized
-  probability-integral-transform completion restores the scalar treatment
-  index in conditional mean. Repeated completions with proper
-  multiple-imputation draws provide inference for parametric models; a
-  full-pipeline bootstrap serves the same role for flexible learners.
-  Simulations show nominal coverage in the validated binary and ordinal
-  designs and also expose the method's main limitation: error in the
-  imputation distribution is not removed by DML orthogonality. For a
-  coefficientless penalized additive learner, scalar recalibration followed
-  by SUDO removes treatment-regularization bias in three additive designs;
-  a high-dimensional boundary fails. SUDO matches, rather than dominates,
-  tailored binary estimators. Its clearest use is for ordinal outcomes, where
-  the same construction targets a latent proportional-odds coefficient
-  without a new outcome-specific score. A wine quality application
-  illustrates the method. An oracle experiment validates count completion,
-  while fitted count learners remain unpromoted.
+  Applying partialling-out directly to a discrete label targets the label's
+  numeric scale, not a cumulative-link or log-mean coefficient.
+  Surrogate-Assisted Double Machine Learning (SUDO) restores the target scale
+  before partialling-out. A fitted distribution supplies a scalar index and
+  conditional CDF; randomization within the observed CDF jump then produces a
+  continuous surrogate whose conditional mean equals the true index when the
+  distribution is correct. Standard Frisch-Waugh-Lovell partialling-out can
+  then recover the treatment coefficient. Proper multiple-imputation draws
+  provide inference for parametric fits, while flexible learners require a
+  full-pipeline bootstrap. Simulations establish nominal coverage for the
+  validated binary and ordinal designs and show the central limitation:
+  double-machine-learning orthogonality does not protect against error in the
+  imputation distribution. Scalar recalibration removes regularization bias
+  from a coefficientless additive learner in three designs, but fails at a
+  high-dimensional boundary. SUDO agrees with correct direct and tailored
+  binary estimators; its practical value is a common route to latent-scale
+  estimation, especially for ordinal outcomes. A wine-quality analysis
+  illustrates that use. An oracle experiment validates count completion, but
+  no fitted count learner is yet supported.
 format:
   arxiv-pdf:
     keep-tex: false
@@ -49,52 +48,39 @@ header-includes:
 
 # Introduction
 
-Many outcomes are discrete: relapse is binary, survey responses are ordinal,
-and trips are counts. Double Machine Learning [DML, @chernozhukov2018] is
-well suited to a continuous partially linear outcome because it removes
-flexibly estimated covariate effects and reads the treatment effect from a
-residual-on-residual regression. Applying the same calculation to a discrete
-label is easy, but it usually targets a residualized contrast in
-$E[Y\mid D,X]$. It does not recover a cumulative-link coefficient or a log
-conditional-mean effect. The problem is the outcome scale.
+Many important outcomes are discrete: relapse is binary, survey responses
+are ordinal, and trips are counts. Double Machine Learning [DML,
+@chernozhukov2018] handles a continuous partially linear outcome by removing
+flexibly estimated covariate effects and regressing one residual on another.
+The same calculation can be applied to a discrete label, but it then targets
+a contrast in $E[Y\mid D,X]$. It does not recover a cumulative-link
+coefficient or a log conditional-mean effect. The obstacle is the outcome
+scale.
 
-This paper takes a simple route around that mismatch: complete the observed
-category to a continuous surrogate on the target scale, then run the usual
-partialling-out calculation. The completion uses the fitted conditional CDF
-to draw within the jump corresponding to the observed category. Under a
-correct distribution, that randomized probability-integral transform has a
-known continuous reference law. Adding the fitted scalar index produces a
-surrogate whose conditional mean is the desired partially linear index.
+SUDO changes the outcome before applying DML. It draws a continuous value
+inside the fitted CDF jump for the observed category and adds the fitted
+scalar index. If the conditional distribution is correct, the completed
+outcome has that index as its conditional mean. The treatment coefficient is
+therefore available through ordinary partialling-out.
 
-The construction repurposes the surrogate-variable approach of @liu2018,
-originally developed for residual diagnostics in ordinal regression, as an
-estimation device. @cheng2021 extend that approach to unordered
-discrete-choice models with vector utilities, while @greenwell2018 provide
-its binary and ordinal implementation in the `sure` package. SUDO stays in
-the scalar-index setting: a distribution learner supplies a pointwise index
-and conditional CDF, and SUDO supplies the completion, partialling-out, and
-uncertainty calculation. Binary, ordinal, and count laws then share one
-estimator interface.
+This construction turns the surrogate-variable method of @liu2018 from a
+diagnostic into an estimator. @cheng2021 extend surrogate residuals to
+unordered discrete-choice models with vector utilities, and @greenwell2018
+implement binary and ordinal diagnostics in the `sure` package. SUDO instead
+focuses on scalar-index distributions. The learner supplies an index and CDF;
+SUDO supplies completion, partialling-out, and uncertainty propagation.
 
-That uniformity does not make SUDO uniformly better. Tailored orthogonal
-scores exist for logistic binary models [@liu2021lplr] and Poisson log-mean
-effects [@drukker2022]. In our binary comparisons, SUDO matches the correct
-tailored estimator and direct coefficient rather than improving on them. The
-main practical opening is ordinal regression, where we identify no published
-orthogonal-score analogue for the latent proportional-odds coefficient.
+The common interface is useful, but it is not an efficiency claim. Tailored
+orthogonal scores already exist for logistic binary models [@liu2021lplr]
+and Poisson log-mean effects [@drukker2022]. SUDO agrees with those estimators
+when their models are correct. Its clearest use is ordinal regression, where
+the same construction targets a latent proportional-odds coefficient without
+deriving a new score. The simulations also establish the method's main
+boundary: DML protects the adjustment regressions, not the distribution that
+creates the surrogate. New imputation learners therefore require direct bias
+and coverage validation.
 
-The paper makes three points. First, randomized-CDF completion turns a broad
-class of discrete outcomes into an ordinary partially linear problem.
-Second, inference must propagate completion and imputation-model uncertainty:
-proper multiple-imputation draws do so for parametric models, while a
-full-pipeline bootstrap does so for validated flexible learners. Third, DML
-orthogonality protects the adjustment regressions but not the distribution
-used to create the surrogate. Simulation therefore remains essential when a
-new imputation learner is introduced. We validate the binary and ordinal
-implementations, illustrate the ordinal method with wine quality, and report
-an oracle count bridge without promoting the fitted count analysis.
-
-# The surrogate idea
+# From a discrete outcome to the target scale
 
 Let $D$ be a treatment, $X \in \mathbb{R}^p$ covariates, and $Y$ a
 discrete outcome with conditional CDF $G_0(y\mid D,X)$. The true
@@ -146,7 +132,7 @@ Identification requires four conditions.
 The first and fourth are standard causal conditions. The second and third
 are modeling choices shared with any structured distributional analysis.
 
-## From a category to a continuous outcome
+## Randomized completion
 
 FWL estimates a treatment coefficient by regressing an outcome residual on a
 treatment residual after removing $X$ from both. DML combines that identity
@@ -202,8 +188,8 @@ to use $S$, rather than only its diagnostic residual, as the outcome in FWL
 or DML.
 
 With an estimated distribution, the equality is asymptotic under consistency
-and approximate otherwise. This limitation matters because the imputation
-model is not protected by DML orthogonality.
+and approximate otherwise. The imputation model is not protected by DML
+orthogonality.
 
 The following base R example compares the fitted logistic coefficient, FWL
 on the unobserved utility, and FWL on one surrogate completion.
@@ -219,27 +205,25 @@ D <- rbinom(n, 1, plogis(0.8 * X))
 Z <- theta * D + X + rlogis(n)
 Y <- as.integer(Z > 0)
 
-imputation_fit <- glm(Y ~ D + X, binomial)
-index_hat <- predict(imputation_fit)
+imputation_fit <- glm(Y ~ D + X, family = binomial())
+index_hat <- predict(imputation_fit, type = "link")
 cdf_at_zero <- plogis(-index_hat)
-uniform_draw <- ifelse(
-  Y == 1,
-  cdf_at_zero + runif(n) * (1 - cdf_at_zero),
-  runif(n) * cdf_at_zero
-)
-surrogate <- index_hat + qlogis(
-  pmin(pmax(uniform_draw, 1e-9), 1 - 1e-9)
-)
+
+lower <- ifelse(Y == 1, cdf_at_zero, 0)
+upper <- ifelse(Y == 1, 1, cdf_at_zero)
+uniform_draw <- runif(n, min = lower, max = upper)
+uniform_draw <- pmin(pmax(uniform_draw, 1e-9), 1 - 1e-9)
+surrogate <- index_hat + qlogis(uniform_draw)
 
 treatment_residual <- resid(lm(D ~ X))
-fwl <- function(outcome) {
+fwl_coefficient <- function(outcome) {
   sum(treatment_residual * resid(lm(outcome ~ X))) /
     sum(treatment_residual^2)
 }
 round(c(
   glm = unname(coef(imputation_fit)["D"]),
-  oracle = fwl(Z),
-  surrogate = fwl(surrogate)
+  oracle = fwl_coefficient(Z),
+  surrogate = fwl_coefficient(surrogate)
 ), 3)
 ```
 
@@ -253,7 +237,7 @@ inference that accounts for the uncertainty hidden by a single completion.
 
 # Estimation and inference
 
-**The estimator.** Cross-fit the two adjustment nuisances
+Cross-fit the two adjustment nuisances
 $\hat m(X) \approx E[D \mid X]$ and $\hat\ell(X) \approx E[S \mid X]$, and
 form the residual-on-residual estimate
 
@@ -268,14 +252,14 @@ tower property, so first-order error in $\hat\ell$ or $\hat m$ does not bias
 $\hat\theta$. This protection covers the two adjustment nuisances, not the
 imputation model that produced the surrogate.
 
-**Proper multiple-imputation inference.** A single completion understates
-uncertainty, so we draw $B$ surrogates and pool with Rubin's rules
+One completion understates uncertainty. We therefore draw $B$ surrogates and
+pool them with Rubin's rules
 [@rubin1987]: the estimate is $\bar\theta = B^{-1}\sum_b \hat\theta^{(b)}$
 and the total variance is $T = \bar W + (1 + 1/B) B_{\!*}$, with a
 Barnard-Rubin small-sample $t$ reference [@barnard1999]. Reusing one fitted
 $\hat\beta$ across all completions leaves its shared estimation error
 invisible to the between-draw variance.
-A *proper* draw redraws the imputation model's parameters,
+A proper draw also redraws the imputation model's parameters,
 $\beta^{(b)} \sim N(\hat\beta, \widehat{\mathrm{Cov}}(\hat\beta))$
 (thresholds included for ordinal outcomes), before each completion. This is
 the large-sample normal form of a proper posterior-predictive draw. It
@@ -287,7 +271,7 @@ jointly with the coefficients. Surrogate-residual mean and variance checks
 provide a diagnostic for the assumed link and mean structure [@liu2018], but
 they do not replace target-level validation.
 
-## What completion adds to the fitted index
+## What completion contributes
 
 Let $R_D=D-m_0(X)$ and let a fitted distribution learner return the pointwise
 index $\hat\eta(D,X)$ without requiring a treatment coefficient. Write
@@ -309,22 +293,17 @@ $\hat\eta(D,X)=\hat\alpha D+\hat f(X)$, then
 $E\{R_D\hat f(X)\}=0$ and $E(R_D D)=E(R_D^2)$, so the first term reduces to
 $\hat\alpha$. $\square$
 
-SUDO therefore projects the fitted index onto the residualized treatment and
-applies an outcome-informed correction. For a structured additive fit the
-projection is its treatment coefficient. The correction can help when
-treatment regularization shrinks the index projection, hurt through
-covariate-direction error, or vanish. It is not a generic improvement over a
-direct coefficient.
-For binary logit, the correction reduces to an entropy-weighted residual
-moment.
+The first term projects the fitted index onto residualized treatment; the
+second uses the observed outcome to correct that projection. For an additive
+fit, the first term is its treatment coefficient. The correction can offset
+treatment shrinkage, transmit covariate-direction error, or vanish. Under a
+binary logit model, it is an entropy-weighted residual moment.
 
-## Where orthogonality stops
+## The unprotected imputation model
 
-The orthogonality established above protects $\hat\theta$ from error in the
-adjustment nuisances but says nothing about the imputation model, whose
-error is baked into the completed data $S$ rather than differenced away.
-The imputation model sits outside the orthogonality guarantee because its
-error is built into the outcome supplied to DML.
+Orthogonality protects $\hat\theta$ from first-order error in the adjustment
+nuisances. It does not protect the imputation model: its error becomes part
+of the completed outcome supplied to DML.
 
 Here, a *black-box imputation model* means a flexible
 distributional learner that supplies a pointwise scalar index and conditional
@@ -334,7 +313,7 @@ probability vector without a scalar index on the target scale remains outside
 scope. Flexible imputation models are cross-fit so each supplied index is an
 out-of-fold prediction.
 
-Either way $\hat\eta$ is fixed with respect to the completion, while
+Conditional on the fitted model, $\hat\eta$ is fixed while
 $Y \mid D, X$ is generated by the truth. Since
 $S$ is $\hat\eta$ plus truncated noise,
 
@@ -396,21 +375,21 @@ text(
 )
 ```
 
-Fitted-index error enters the SUDO target at first order. If the effective
-treatment component is displaced by $\delta_D$, the leading bias is
+Fitted-index error therefore enters the SUDO target at first order. If the
+effective treatment component is displaced by $\delta_D$, the leading bias is
 approximately $\bar c_1\delta_D$, where $\bar c_1$ averages $c(e)$ over
 the treatment-relevant index distribution. Error in the covariate component
 can also survive because completion is nonlinear in the fitted index.
-Partialling-out does not erase either channel. Target-level bias, not
-predictive fit alone, is therefore the relevant validation criterion.
+Partialling-out does not erase either channel. Predictive fit alone is not a
+sufficient validation criterion; the treatment target must be checked
+directly.
 
-# Machine-learning imputation models
+# Flexible distribution learners
 
-A parametric distribution model supplies both an index and a covariance
-matrix, so proper draws are immediate. A black-box learner supplies neither
-a treatment coefficient nor a joint parameter covariance. We therefore ask
-only for pointwise index and CDF predictions and handle structure and
-inference outside the learner.
+A parametric model supplies an index and covariance matrix, making proper
+draws straightforward. A flexible learner may supply neither a treatment
+coefficient nor a usable joint covariance. SUDO asks it only for pointwise
+index and CDF predictions, then handles structure and inference separately.
 
 For the validated binary experiments, we restrict the imputation index to
 $\hat\alpha D+\hat f(X)$. A GAM, MARS bases built from $X$ only, and
@@ -419,32 +398,29 @@ prevents treatment-by-covariate interactions, but it does not guarantee a
 good fit or a small target bias. Two other partially linear learners failed
 the bias criterion, including one tuned by predictive risk.
 
-When a learner has no usable covariance, the full-pipeline bootstrap
+When a learner has no usable covariance, a full-pipeline bootstrap
 resamples the observations and reruns the entire procedure, including the
 imputation learner, folds, completions, and adjustment nuisances. A
 within-fold refit misses important sources of variation. In the validated
 binary designs, normal intervals based on the full-pipeline bootstrap
 standard deviation attain nominal coverage.
 
-These results support a workflow, not a blanket theorem for arbitrary
-learners: impose a scalar-index structure suited to the estimand, tune on
-target-level simulation bias, and require coverage validation before
-promotion.
+The resulting workflow is deliberately strict: impose a scalar-index
+structure suited to the estimand, tune on target-level simulation bias, and
+check coverage before using a learner for inference.
 
 ## Scale-calibrated SUDO
 
-Regularization may preserve the shape of a fitted index while shrinking its
-location and scale. We correct that low-dimensional error before completion.
-Let a distribution learner supply an out-of-fold logit index
-$\hat\eta(D,X)$; the estimator never reads a treatment coefficient from the
-learner. On the training observations for a held-out fold, fit the logistic
-recalibration
+Regularization can preserve the shape of an index while compressing its
+location and scale. Scalar recalibration corrects that error before
+completion. Let a learner supply an out-of-fold logit index
+$\hat\eta(D,X)$. On the training observations for a held-out fold, fit
 $$
 P(Y=1\mid\hat\eta)=\Lambda(a+b\hat\eta)
 $$ {#eq-scale-calibration}
-and apply $\tilde\eta=a+b\hat\eta$ to the held-out index. Treatment and its
-residual do not enter @eq-scale-calibration. This is ordinary scalar
-recalibration, not treatment targeting.
+and apply $\tilde\eta=a+b\hat\eta$ to the held-out predictions. The estimator
+does not read a treatment coefficient from the learner, and neither treatment
+nor its residual enters the calibration regression.
 
 For binary logit, write $p=\Lambda(\tilde\eta)$ and
 $h(p)=-p\log p-(1-p)\log(1-p)$. The Rao-Blackwell surrogate is
@@ -457,24 +433,22 @@ It equals the conditional mean of a truncated-logistic surrogate and removes
 completion Monte Carlo noise. Randomized completion remains available by
 drawing the logistic reference quantile inside the fitted Bernoulli CDF jump.
 
-**Algorithm 1: cross-fitted scale-calibrated SUDO.**
+**Algorithm 1: Cross-fitted scale-calibrated SUDO.**
 
-1. Split the observations into $K$ folds. Fix all tuning rules before the
-   confirmatory sample is analyzed.
+1. Split the data into $K$ folds and fix the tuning rule.
 2. For each held-out fold, fit the distribution learner and treatment
-   nuisance $m(X)=E(D\mid X)$ without that fold. Obtain scalar-index
-   predictions for the training and held-out observations.
-3. Estimate $(a,b)$ from @eq-scale-calibration on training observations and
-   apply the fitted map to the held-out index.
-4. Construct training and held-out surrogates with @eq-rb-binary. Fit
+   nuisance $m(X)=E(D\mid X)$ on the other folds. Predict the scalar index in
+   the training and held-out observations.
+3. Fit @eq-scale-calibration on the training predictions and recalibrate the
+   held-out index.
+4. Use @eq-rb-binary to construct training and held-out surrogates. Fit
    $\ell(X)=E(\tilde S\mid X)$ on the training observations and predict it in
    the held-out fold.
-5. Stack the held-out predictions and compute @eq-theta with
-   $S=\tilde S$. For randomized completion, repeat steps 4 and 5 for each
-   draw before pooling the treatment estimates.
-6. For a flexible distribution learner, resample the observations and rerun
-   every preceding step. Use the standard deviation of the bootstrap
-   estimates in the normal interval
+5. Stack held-out predictions and compute @eq-theta with $S=\tilde S$. For
+   randomized completion, repeat the completion and partialling steps, then
+   average the treatment estimates.
+6. With a flexible learner, bootstrap the observations and rerun all five
+   steps. Form a normal interval from the bootstrap standard deviation,
    $\hat\theta\mathbin{\pm}1.96\widehat{\operatorname{sd}}_{\!*}$.
 
 The reason for the calibration is exact in a useful special case. If, on a
@@ -485,12 +459,12 @@ $\theta_0$. With a remaining error $r(D,X)$, bias depends on its projection
 onto $D-m_0(X)$ after completion. Scalar calibration does not control an
 arbitrary $r$ and is not a substitute for target-level validation.
 
-An optional affine fluctuation adds a treatment-residual direction to
-@eq-scale-calibration. It is useful as a sensitivity analysis, but it partly
-targets the treatment effect before completion. The scale-only form is the
-cleaner test of whether the surrogate and FWL steps add information.
+For sensitivity analysis, an affine fluctuation can add a treatment-residual
+direction to @eq-scale-calibration. That version partly targets the treatment
+effect before completion. Scale-only calibration more cleanly isolates what
+the surrogate and FWL steps contribute.
 
-# Simulation study {#sec-sims}
+# Simulation evidence {#sec-sims}
 
 The simulations draw independent standard-normal covariates, assign treatment
 from those covariates, and coarsen a partially linear latent utility:
@@ -501,15 +475,15 @@ Z = \theta_0 D + g_0(X) + \varepsilon,$$ {#eq-dgp}
 $$\varepsilon \sim F, \qquad
 Y = j \iff \kappa_{j-1} < Z \le \kappa_j,$$
 
-The correctly specified one-covariate design isolates inference. The
+One correctly specified covariate isolates the inference calculation. The
 five-covariate machine-learning design uses
 $$\pi(X) = X_4 + \cos X_5, \qquad g_0(X) = X_1^2 + \sin X_2 + 0.5 X_3,$$
 with binary or three-category ordinal outcomes. @tbl-dgp lists the full
 designs.
 
-The coverage target is 0.95. Standard deviation (SD) is run-to-run
-variability; mean standard error (mean SE) is the average reported
-uncertainty. The tables are generated from committed result files.
+Coverage is evaluated against 0.95. Standard deviation (SD) measures
+run-to-run variation; mean standard error (mean SE) averages the reported
+uncertainty. Every table is generated from a committed result file.
 
 ```{r}
 #| label: results-setup
@@ -522,9 +496,9 @@ sg <- function(x, d = 3) sprintf(paste0("%+.", d, "f"), x)
 nn <- function(x, d = 3) sprintf(paste0("%.", d, "f"), x)
 ```
 
-**Proper draws are what deliver coverage.** With a simple binary design and
-a correct parametric imputation model, only the proper scheme reaches
-nominal coverage; the naive interval covers 0.80 and the improper 0.92
+**Proper draws deliver coverage.** In the simple binary design, the naive
+interval covers 0.80 and repeated completion with fixed imputation parameters
+covers 0.92. Redrawing those parameters raises coverage to 0.95
 (@tbl-ladder).
 
 ```{r}
@@ -545,10 +519,9 @@ knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 ```
 
 **Ordinal outcomes.** With three categories and machine-learning adjustment,
-SUDO meets the bias criterion with valid coverage (@tbl-ordinal). The
-outcome nuisance $E[S\mid X]$ must be refit for each ordinal completion;
-reusing one fit inflated the within-draw variance. The corrected procedure
-has bias 0.016 and coverage 0.960 in 200 replications.
+SUDO has bias 0.016 and coverage 0.960 in 200 replications
+(@tbl-ordinal). Refitting $E[S\mid X]$ for each completion is necessary;
+reusing one fit inflated the within-draw variance.
 
 ```{r}
 #| label: tbl-ordinal
@@ -568,13 +541,13 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r"))
 ```
 
-**Direct and tailored comparisons.** SUDO does not dominate a correct
-outcome-specific estimator (@tbl-no-superiority). In the correct ordinal
-parametric design, SUDO and the direct cumulative-link coefficient agree. Under a
-cloglog truth, SUDO, the tailored orthogonal score, and the direct cloglog
-coefficient have indistinguishable bias. In the high-dimensional binary
-design, SUDO attenuates treatment-regularization bias but does not remove it.
-These comparisons define the method's scope rather than rank efficiency.
+**Direct and tailored comparisons.** In the correctly specified ordinal
+design, SUDO and the cumulative-link coefficient agree. Under a cloglog
+truth, SUDO, the tailored orthogonal score, and the direct cloglog coefficient
+have indistinguishable bias. In the high-dimensional binary design, SUDO
+reduces treatment-regularization bias but does not remove it
+(@tbl-no-superiority). These comparisons establish agreement with correct
+outcome-specific estimators, not an efficiency advantage.
 
 ```{r}
 #| label: tbl-no-superiority
@@ -607,12 +580,11 @@ table_data <- rbind(
 knitr::kable(table_data, align = c("l", "l", "r", "r"))
 ```
 
-**Link misspecification.** Generating Gumbel noise but assuming a logistic
-link substantially biases the latent-scale effect (+0.77 for binary, +0.58
-for ordinal outcomes, with zero coverage). The correct link removes this
-bias (bias $<0.005$). Conditional second-moment drift in the surrogate
-residual flags the wrong fit but is not specific to the link, so we use it as
-a diagnostic rather than a formal test [@liu2018].
+**Link misspecification.** Assuming a logistic link under Gumbel noise biases
+the latent-scale effect by +0.77 for binary outcomes and +0.58 for ordinal
+outcomes, with zero coverage. Bias is below 0.005 under the correct link.
+Conditional second-moment drift in the surrogate residual flags the poor fit,
+but is not specific to the link and remains a diagnostic [@liu2018].
 
 **Partially-linear imputation learners.** GAM, MARS, and neural backfitting
 fit the same $\alpha D+f(X)$ structure. All three pass the prespecified
@@ -642,20 +614,18 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "r", "r", "r", "r", "r"))
 ```
 
-Partial linearity is necessary in these experiments but not sufficient. Two
-other partially linear learners fail the bias screen, including one selected
-by cross-validated predictive risk. Prediction error is therefore a
-diagnostic, not a tuning target for the treatment coefficient. The validated
-configurations were screened on target-level Monte Carlo bias and evaluated
-on separate seeds; a data-only selection rule remains open.
+Partial linearity alone is not enough. Two other partially linear learners
+fail the bias screen, including one selected by cross-validated predictive
+risk. The successful configurations were screened on target-level Monte
+Carlo bias and evaluated on separate seeds. A data-only selection rule remains
+open.
 
-**Coefficientless additive learner.** We next fit the binary index with
-GAMSEL [@chouldechova2015], constraining $D$ to be linear while allowing each
-$X_j$ to enter linearly, smoothly, or not at all. Estimation uses only index
-predictions. In the three $p=80$ additive designs, the full affine-calibrated
-SUDO pipeline passes every prespecified bias, coverage, SD-to-SE, and
-bootstrap-success gate (@tbl-calibrated-sudo). Ordinary SUDO retains material
-regularization bias.
+**Coefficientless additive learner.** GAMSEL [@chouldechova2015] fits the
+binary index with a linear treatment term while allowing each $X_j$ to enter
+linearly, smoothly, or not at all. SUDO uses only its index predictions. In
+three $p=80$ additive designs, full-affine calibrated SUDO passes every
+prespecified bias, coverage, SD-to-SE, and bootstrap-success gate
+(@tbl-calibrated-sudo). Ordinary SUDO retains material regularization bias.
 
 ```{r}
 #| label: tbl-calibrated-sudo
@@ -671,20 +641,16 @@ full <- s16g[
 ordinary <- s16g[
   s16g$estimator == "sudo", c("cell", "bias")
 ]
-row_for <- function(x, cell) x[match(cell, x$cell), ]
-table_data <- do.call(rbind, lapply(cell_order, function(cell) {
-  f <- row_for(full, cell)
-  o <- row_for(ordinary, cell)
-  data.frame(
-    Design = c(randomized = "Randomized", confounded = "Confounded",
-               high_signal = "High signal")[[cell]],
-    `Ordinary bias` = sg(o$bias),
-    `Calibrated bias` = sg(f$bias),
-    Coverage = nn(f$coverage),
-    `SD/Mean SE` = nn(f$sd_to_se),
-    check.names = FALSE
-  )
-}))
+full <- full[match(cell_order, full$cell), ]
+ordinary <- ordinary[match(cell_order, ordinary$cell), ]
+table_data <- data.frame(
+  Design = c("Randomized", "Confounded", "High signal"),
+  `Ordinary bias` = sg(ordinary$bias),
+  `Calibrated bias` = sg(full$bias),
+  Coverage = nn(full$coverage),
+  `SD/Mean SE` = nn(full$sd_to_se),
+  check.names = FALSE
+)
 knitr::kable(table_data, align = c("l", rep("r", 4)))
 ```
 
@@ -698,30 +664,25 @@ scale_direct <- s16h[
 scale_sudo <- s16h[
   s16h$estimator == "scale_calibrated_sudo", c("cell", "bias")
 ]
-table_data <- do.call(rbind, lapply(cell_order, function(cell) {
-  d <- row_for(scale_direct, cell)
-  s <- row_for(scale_sudo, cell)
-  data.frame(
-    Design = c(randomized = "Randomized", confounded = "Confounded",
-               high_signal = "High signal")[[cell]],
-    `Direct read-off` = sg(d$bias),
-    `Scale-calibrated SUDO` = sg(s$bias),
-    check.names = FALSE
-  )
-}))
+scale_direct <- scale_direct[match(cell_order, scale_direct$cell), ]
+scale_sudo <- scale_sudo[match(cell_order, scale_sudo$cell), ]
+table_data <- data.frame(
+  Design = c("Randomized", "Confounded", "High signal"),
+  `Direct read-off` = sg(scale_direct$bias),
+  `Scale-calibrated SUDO` = sg(scale_sudo$bias),
+  check.names = FALSE
+)
 knitr::kable(table_data, align = c("l", "r", "r"))
 ```
 
-The scale-only ablation isolates SUDO's contribution. Its biases are
-$+0.014$, $+0.009$, and $-0.009$ across the three designs. Under confounding,
-reading a coefficient from the scale-calibrated index has bias $+0.039$,
-while completion and FWL reduce it to $+0.009$. Tilt-only calibration fails
-under confounding and high signal. Thus treatment-directed targeting is not
-needed for the point result. Scale-only coverage has not yet been validated,
-so @tbl-calibrated-sudo and @tbl-scale-ablation report full-affine coverage
-and scale-only bias separately. At $p=500$, full-affine calibrated SUDO has
-bias $-0.048$ and fails the point gate. This is the observed boundary, not a
-promoted design.
+The scale-only ablation separates calibration from treatment targeting. Its
+biases are $+0.014$, $+0.009$, and $-0.009$. Under confounding, the coefficient
+read directly from the recalibrated index has bias $+0.039$; completion and
+FWL reduce it to $+0.009$ (@tbl-scale-ablation). Tilt-only calibration fails
+under confounding and high signal. Scale-only coverage has not been tested,
+so the two tables deliberately separate its point-bias result from the
+full-affine coverage result. At $p=500$, even full-affine calibrated SUDO has
+bias $-0.048$ and fails the point gate.
 
 With continuous treatment, bias remains below 1.5% of the truth in the binary
 and ordinal designs. Strong-signal coverage is less stable, reinforcing the
@@ -730,10 +691,10 @@ result from a binary-treatment experiment.
 
 ## Count oracle bridge
 
-We isolate count completion from fitted-learner error by supplying the true
-scalar index and count CDF. The six
-prespecified cells cross Poisson and negative-binomial laws, binary and
-continuous treatments, and two signal strengths where applicable. At
+To separate count completion from fitted-learner error, we supply the true
+scalar index and count CDF. Six prespecified cells cross Poisson and
+negative-binomial laws, binary and continuous treatments, and two signal
+strengths where applicable. At
 $n=2000$, with 100 replications, $B=25$ randomized completions, five folds,
 and 99 bootstrap resamples, both analytic Rao-Blackwell and randomized
 completion pass every bias, coverage, and SD-to-SE gate
@@ -784,26 +745,25 @@ table_data <- data.frame(
 knitr::kable(table_data, align = c("l", "c", "r", "r", "r"))
 ```
 
-This bridge validates the count completion and bootstrap when the supplied
-distribution is correct. It does not validate a fitted count learner. The
-constrained-XGBoost point screen failed its promotion gate, so fitted count
-support and the prespecified bikeshare application remain outside the paper's
-claims.
+The oracle results validate count completion and bootstrap inference under a
+correct supplied distribution. They do not validate estimation of that
+distribution. Constrained XGBoost failed the point-bias screen, so the paper
+makes no claim for fitted count learners or the planned bikeshare analysis.
 
-# Application: volatile acidity and wine quality
+# Wine quality application
 
-We apply ordinal SUDO to the UCI wine-quality data [@cortez2009]. Quality is
-the median ordinal score from blind tasters. We analyze the 1,599 red and
-4,898 white wines separately; observed scores range from 3 to 8 for red wine
-and 3 to 9 for white. The treatment is standardized volatile acidity, an
-acetic-acid fault associated with vinegar-like aroma. The adjustment set is
-the other ten standardized physicochemical measurements.
+We apply ordinal SUDO to the UCI wine-quality data [@cortez2009]. The outcome
+is the median ordinal score from blind tasters. We analyze 1,599 red and 4,898
+white wines separately; scores range from 3 to 8 for red wine and 3 to 9 for
+white. The exposure is standardized volatile acidity, an acetic-acid fault
+associated with vinegar-like aroma. The other ten standardized
+physicochemical measurements form the adjustment set.
 
-The data are observational. A causal reading requires the measured chemistry
-to be a sufficient pre-treatment adjustment set and winemaking practice to
+This is an observational analysis. A causal interpretation would require the
+measured chemistry to suffice for adjustment and winemaking practice to
 affect quality only through that chemistry and volatile acidity
-(@fig-dag). We do not claim that these assumptions are established. The
-analysis illustrates the method on a genuinely ordinal outcome.
+(@fig-dag). Those assumptions are not established, so we report conditional
+associations.
 
 ```{mermaid}
 %%| label: fig-dag
@@ -829,11 +789,11 @@ natural spline for each variable, with no treatment-by-covariate interactions.
 Ordinal SUDO uses 50 proper draws, five-fold cross-fitted GAM nuisances, and
 Rubin pooling. The two specifications give similar estimates (@tbl-wine).
 
-Because volatile acidity is standardized, the coefficients are per one
-standard deviation, about 0.18 g/dm$^3$ for red wine and 0.10 for white.
-A one-SD increase multiplies the odds of scoring above any fixed quality
-level by about 0.59 for red wine and 0.64 for white wine. The direct
-cumulative-link coefficient is included as a model-based comparator.
+The coefficients correspond to one standard deviation of volatile acidity,
+about 0.18 g/dm$^3$ for red wine and 0.10 for white. A one-SD increase is
+associated with odds ratios of about 0.59 and 0.64, respectively, for scoring
+above any fixed quality level. The direct cumulative-link coefficient is a
+model-based comparator.
 
 ```{r}
 #| label: tbl-wine
@@ -874,43 +834,33 @@ wine and 10% for white wine to move the estimate to zero [@cinelli2020].
 Because that calibration was derived for linear regression with an observed
 outcome, we report it as a heuristic rather than a formal SUDO bound.
 
-The completion itself provides substantial self-correction in this
-application: the fitted pass-through averages 0.21 for red wine and 0.17 for
-white wine. This does not establish robustness to an arbitrary wrong
-imputation model, but it shows why the ordinal categories carry useful
-information beyond the fitted index.
+The fitted pass-through averages 0.21 for red wine and 0.17 for white. Thus
+the observed categories correct much of a local fitted-index error in these
+data. This calculation does not establish robustness to arbitrary
+misspecification.
 
 # Discussion
 
-SUDO turns a discrete-outcome problem into a familiar continuous
-partialling-out problem. The fitted distribution identifies the target
-scale; randomized completion restores that scale in conditional mean; DML
-then removes flexible covariate effects. This separation is the main value
-of the method.
+SUDO separates two tasks that are often conflated. The fitted distribution
+places the outcome on the target scale, and DML removes flexible covariate
+effects on that scale. This gives binary and ordinal models the same
+partialling-out interface. It does not supersede a correct direct estimator or
+a tailored orthogonal score. Proper draws or a full-pipeline bootstrap are
+part of the procedure because a single completion hides uncertainty.
 
-The method does not dominate a correct direct or tailored estimator. Its
-advantage is a common interface, especially for ordinal outcomes for which a
-tailored orthogonal score is not readily available. Proper draws or a
-full-pipeline bootstrap are part of the estimator, not optional refinements.
+The separation also identifies the weak point. Orthogonality covers the two
+adjustment regressions, not the distribution that creates the surrogate.
+Partial linearity rules out treatment-by-covariate interactions but does not
+ensure a small target bias. Scalar recalibration repairs one important case,
+namely an index with the right shape and the wrong location or scale. It does
+not repair arbitrary index error, as the $p=500$ failure shows.
 
-The same separation also exposes the central risk. DML orthogonality protects
-the adjustment regressions, but not the distribution learner that creates
-the surrogate. Partial linearity prevents treatment-by-covariate interactions
-but does not guarantee small treatment bias. Each new learner and outcome
-family therefore needs target-level simulation and coverage checks.
-
-Scalar recalibration addresses one common failure mode: a learner may recover
-the index shape but shrink its location and scale. In the additive GAMSEL
-experiment, scale-only recalibration followed by SUDO passes all point-bias
-gates without using a treatment direction. The full affine version also
-passes full-pipeline coverage. Neither result implies protection from
-arbitrary index error; the $p=500$ boundary fails.
-
-The validated contribution is binary and ordinal, including a calibrated
-coefficientless binary learner. The count oracle bridge shows that completion
-extends cleanly to Poisson and negative-binomial laws, but the fitted count
-learner did not pass promotion. Full coverage validation of scale-only
-calibrated SUDO remains the next binary inference check.
+Current evidence supports binary and ordinal SUDO, including a
+coefficientless calibrated binary learner. Count completion works with an
+oracle index and CDF, but fitted count learning remains unresolved. The next
+inferential check is full coverage validation of scale-only calibration. More
+broadly, every new imputation learner should be evaluated through
+target-level bias and coverage experiments.
 
 # Data and software
 
@@ -921,8 +871,9 @@ and the per-completion ordinal outcome-nuisance refit. The partially-linear
 machine-learning imputation learners and the full-pipeline bootstrap are
 implemented in R, which is also where every method is prototyped and
 validated before release. Count and flexible ordinal adapters remain R-only
-until their fitted-learner confirmation stages pass. Scale-calibrated SUDO
-also remains R-only pending its own coverage stage. The open-source
+until their fitted-learner confirmation stages pass. The full-affine
+calibrated estimator also remains R-only, and scale-only calibration still
+awaits coverage validation. The open-source
 repository contains the code and committed result files behind every table
 and figure under the MIT License:
 <https://github.com/bgreenwell/sudo>.
