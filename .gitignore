@@ -65,6 +65,7 @@ manuscript/revised_paper_theory_review.md
 # Validation checkpoints and smoke outputs are local run artifacts
 R/results/*_checkpoint*.csv
 R/results/*_smoke.csv
+R/results/stage19_mboost_ordinal_bootstrap_state*/
 R/results/stage15_count_point.csv
 R/results/stage15_count_promotion.csv
 manuscript/paper/.Rhistory

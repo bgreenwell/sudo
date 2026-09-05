@@ -1,0 +1,452 @@
+---
+title: "Recovering a Latent Outcome Scale"
+subtitle: "Focused binary and ordinal comparisons of double machine learning and SUDO"
+author: "Brandon M. Greenwell"
+format:
+  pdf:
+    documentclass: article
+    fontsize: 10pt
+    geometry:
+      - margin=0.68in
+    colorlinks: true
+    keep-tex: false
+execute:
+  echo: false
+  warning: false
+  message: false
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{booktabs}
+  - \usepackage{microtype}
+  - \usepackage{enumitem}
+  - \setlength{\parindent}{0pt}
+  - \setlength{\parskip}{0.35em}
+  - \setlist{nosep,leftmargin=1.3em}
+  - \AtBeginDocument{\pagenumbering{gobble}}
+---
+
+## The binary problem
+
+With a binary outcome, we observe only 0 or 1 even when the scientific target
+lives on an underlying continuous scale. Suppose
+
+$$
+P(Y=1\mid D,X)=F\{\theta_0D+g_0(X)\},
+$$
+
+Here $D$ is the treatment, $X$ contains background variables that may affect
+both treatment and outcome, and $F$ turns the underlying index into a
+probability. The target $\theta_0$ is the treatment effect on that underlying
+index. Ordinary double machine learning applied to the $0/1$ label answers a
+different question: how the treatment changes the probability-scale outcome.
+A logistic version of double machine learning can recover $\theta_0$, but only
+when the logistic link is correct. Flexible nuisance models do not repair a
+wrong link.
+
+Surrogate-Assisted Double Machine Learning (SUDO) first fits the full outcome
+distribution. It then replaces each binary label with a continuous surrogate
+that is consistent with both the fitted model and the observed label. When
+that outcome model is correct,
+
+$$
+E(S\mid D,X)=\theta_0D+g_0(X).
+$$
+
+The usual treatment-effect calculation can then be applied to $S$. The same
+downstream calculation works with a logit, complementary log-log, or another
+supported link. SUDO is flexible about the link, but it is not automatically
+robust: it can still fail if the fitted outcome distribution is wrong.
+
+## A deliberately simple binary experiment
+
+The simulation changes only the response link. For each replication,
+
+$$
+X\sim N(0,1),\qquad
+D=0.5X+\nu,\quad \nu\sim N(0,0.7^2),
+$$
+
+$$
+\eta=a_F+0.8D+0.5X,\qquad Y\sim\operatorname{Bernoulli}\{F(\eta)\}.
+$$
+
+The true latent-scale treatment effect is $\theta_0=0.8$. The first setting
+uses a logit link. The second uses a complementary log-log link, with its
+intercept chosen so the baseline outcome probability is one half. The
+treatment is continuous, the confounding pattern is linear, and each sample
+has 2,000 observations. The design is intentionally simple so the response
+link is the only important difference.
+
+Five estimators are fit on the same 300 simulated samples under each link:
+
+1. **Raw-label DML with partially linear regression (PLR):** treats 0 and 1 as
+   ordinary numbers. It estimates a treatment effect on that numeric scale,
+   not the latent scale.
+2. **Partially logistic DML:** uses a logistic model designed to estimate the
+   latent coefficient when the true link is logit.
+3. **Logit SUDO:** builds the continuous surrogate using a logit outcome model.
+4. **Cloglog SUDO:** builds the surrogate using a complementary log-log
+   outcome model.
+5. **Correct-link generalized linear model (GLM):** fits the correct simple
+   response model. It serves as a benchmark.
+
+All DML procedures use five folds. SUDO averages 25 valid surrogate draws for
+each data set. The supporting prediction models are intentionally smooth and
+well matched to the simple design.
+
+\newpage
+
+## Terms used in the binary comparison
+
+- **SUDO** means *Surrogate-Assisted Double Machine Learning*. It first
+  restores a continuous outcome scale and then estimates the treatment effect.
+- **DML** means *double machine learning*. It uses machine learning to predict
+  the parts of treatment and outcome explained by $X$, then relates what is
+  left of the outcome to what is left of the treatment.
+- **PLR** means *partially linear regression*. The treatment enters with one
+  coefficient, while the effect of $X$ may be learned flexibly.
+- **GLM** means *generalized linear model*. Here it is the familiar binary
+  regression model fit with the link that generated the data.
+- **Logit** and **cloglog** are two different rules for translating a latent
+  index into an outcome probability. Cloglog abbreviates complementary
+  log-log.
+
+## Binary results
+
+Bias is the average estimate minus the true latent coefficient, 0.8. Coverage
+is the fraction of 95% confidence intervals that contain 0.8.
+
+```{r}
+bias <- read.csv("../../python/results/binary_link_bias.csv",
+                 check.names = FALSE)
+method_order <- c(
+  "Raw-label DML PLR", "Partially logistic DML", "SUDO (logit)",
+  "SUDO (cloglog)", "Correct-link GLM"
+)
+make_display <- function(data, value) {
+  logit <- data[data$truth == "logit", ]
+  cloglog <- data[data$truth == "cloglog", ]
+  data.frame(
+    Estimator = method_order,
+    `Logit truth` = logit[[value]][match(method_order, logit$estimator)],
+    `Cloglog truth` = cloglog[[value]][match(method_order, cloglog$estimator)],
+    check.names = FALSE
+  )
+}
+knitr::kable(
+  make_display(bias, "bias_vs_latent_theta"),
+  caption = "Bias relative to the latent coefficient.",
+  digits = 3, booktabs = TRUE, align = c("l", "r", "r")
+)
+```
+
+```{r}
+coverage <- read.csv("../../python/results/binary_link_coverage.csv",
+                     check.names = FALSE)
+knitr::kable(
+  make_display(coverage, "coverage_of_latent_theta"),
+  caption = "Coverage of nominal 95% intervals for the latent coefficient.",
+  digits = 3, booktabs = TRUE, align = c("l", "r", "r")
+)
+```
+
+Under logit truth, partially logistic DML and logit SUDO are essentially
+unbiased, with coverage 0.953 and 0.980. Under cloglog truth, partially
+logistic DML has bias 0.295 and coverage 0.217. Cloglog SUDO has bias 0.004
+and coverage 0.953, nearly matching the correctly specified GLM. SUDO with
+the wrong link performs poorly in both directions, as expected.
+
+Raw-label PLR has zero coverage of $\theta_0$ under both links because it is
+estimating a different quantity. This is not a defective PLR confidence
+interval. It is the consequence of treating a binary label as though its
+numeric scale were the target scale.
+
+## What the binary experiment shows
+
+The choice of link changes the target that can be recovered. Partially
+logistic DML works well when the logistic model is right. SUDO keeps the same
+final treatment-effect calculation while allowing the outcome model to use a
+different supported link.
+
+This experiment establishes the link-flexibility principle under a simple,
+well-fitted full outcome model. It does not establish validity for an arbitrary
+black-box distribution learner. Such learners still require direct
+theta-level bias checks and full-pipeline coverage validation.
+
+\newpage
+
+## The SUDO algorithm
+
+The binary and ordinal examples use the same core procedure. They differ only
+in the chosen outcome model and in how the surrogate response is generated.
+
+Steps 3 through 5 use the latent surrogate response proposed in the surrogate
+residual literature and implemented by `sure::surrogate(method = "latent")`.
+The `sure` package subtracts the full fitted mean from this response to create
+a diagnostic residual. SUDO instead keeps the response as its outcome and,
+in Step 6, removes only the part explained by $X$. This leaves the treatment
+component available for estimation. The Rao-Blackwell surrogate response is
+the conditional average of the same random surrogate that `sure` generates.
+
+Stage 20 verifies exact seeded agreement for binary logit and probit and for
+ordinal logit, probit, and cloglog, after accounting for `sure`'s harmless
+ordinal threshold-origin shift. One implementation exception is binary
+cloglog: local `sure` 0.3.0.9000 uses the ordinal Gumbel-min convention, while
+a binomial cloglog model requires Gumbel-max. SUDO uses the required binary
+convention; the discrepancy is recorded in
+[`sure` issue 45](https://github.com/bgreenwell/sure/issues/45).
+
+1. **Choose and state the latent scale.** Select a response link and latent
+   error distribution that give the treatment coefficient a scientific
+   meaning. The binary examples use logit or cloglog. The ordinal example uses
+   a proportional-odds logit model. This choice is an assumption, not something
+   DML can discover from the category labels alone.
+
+2. **Split the observations into folds.** Each observation is held out once.
+   All predictions for that observation must come from models trained on other
+   folds. This is cross-fitting.
+
+3. **Fit the model that will generate the surrogate.** Using the training
+   folds, model the probability of every possible $Y$ from both treatment $D$
+   and background variables $X$. For a partially linear treatment effect, use
+   a latent index of the form $\alpha D+f(X)$: $f(X)$ may be learned flexibly,
+   but treatment enters through one coefficient. Predict the index, category
+   probabilities, and any ordinal cutpoints for the held-out fold. No
+   surrogate response has been created yet.
+
+4. **Find the latent-variable interval.** The observed category tells us where
+   the continuous latent variable $Z_i$ can lie. Call this interval $A_i$. A
+   binary label places $Z_i$ above or below one boundary. An ordinal label
+   places $Z_i$ between two adjacent cutpoints. This step identifies the
+   allowed range but still does not create the surrogate.
+
+5. **Generate the surrogate response $S$.** For every held-out observation,
+   combine $A_i$ with the fitted outcome distribution. This is the step where
+   the new continuous response is actually created. There are two routes:
+
+   - **Rao-Blackwell surrogate response:** set
+     $S_i=\widehat E(Z_i\mid Y_i,D_i,X_i)$. This conditional-mean version is
+     used in the ordinal example.
+   - **Randomized surrogate response:** draw
+     $S_i\sim\widehat{\mathcal L}(Z_i\mid Y_i,D_i,X_i)$. For proper multiple
+     imputation, first redraw the fitted outcome-model parameters, including
+     ordinal cutpoints. Repeat this step to create several surrogate responses.
+     This is the route used in the binary example.
+
+   At the end of Step 5, the collection $(S_1,\ldots,S_n)$ is the surrogate
+   response used in all remaining steps.
+
+6. **Apply DML to the surrogate response.** On the training folds, separately
+   learn the expected treatment $E(D\mid X)$ and expected surrogate response
+   $E(S\mid X)$. Predict both for the held-out fold and form residuals
+   $\widetilde D=D-\widehat E(D\mid X)$ and
+   $\widetilde S=S-\widehat E(S\mid X)$. For ordinal multiple imputation, the
+   surrogate-response regression is refit for every surrogate data set.
+
+7. **Estimate the treatment effect.** After every observation has held-out
+   residuals, compute
+
+   $$
+   \widehat\theta=
+   \frac{\sum_i \widetilde D_i\widetilde S_i}
+        {\sum_i \widetilde D_i^2}.
+   $$
+
+   In plain language, this compares surrogate responses between people whose
+   treatments differ more than their background variables would predict.
+
+8. **Combine repeated surrogate responses when needed.** With multiple imputation,
+   repeat Steps 5 through 7 and average the treatment estimates. Rubin's rules
+   combine ordinary sampling uncertainty with the variation across surrogate
+   data sets. The Rao-Blackwell route produces one surrogate response and does
+   not need this pooling step.
+
+9. **Account for fitting uncertainty.** For a flexible learned outcome model,
+   resample the original observations and rerun Steps 2 through 8 from the
+   beginning. The standard deviation of these full-pipeline bootstrap estimates
+   is the standard error. The ordinal example uses 99 such bootstrap samples.
+
+10. **Validate the complete procedure.** Before using a new outcome learner,
+    simulate new data with a known $\theta$, tune on separate simulation seeds,
+    and check final bias, interval coverage, numerical failures, treatment
+    overlap, valid probabilities, and ordered cutpoints. Cross-fitting protects
+    against ordinary prediction error; it cannot repair a wrong outcome link or
+    a poor full outcome model.
+
+\newpage
+
+## Ordinal extension: category labels are not a scale
+
+For an ordinal outcome, we know the category order but not the distance
+between categories. Calling five categories 1 through 5 does not establish
+that the distance from 1 to 2 equals the distance from 4 to 5. The simulation
+uses the following exact data-generating process:
+
+$$
+\begin{aligned}
+P(D=1\mid X)&=\operatorname{expit}(0.45X_1-0.35X_4),\\
+Z&=D+g_0(X)+\varepsilon,\qquad \varepsilon\sim\operatorname{Logistic}(0,1),\\
+g_0(X)&=0.65X_1+0.55\sin(X_2)+0.45(X_3^2-1)-0.40X_4.
+\end{aligned}
+$$
+
+- **$X$:** 50 background variables. Only the first four affect treatment or
+  outcome; the remaining 46 are noise variables.
+- **$D$:** a binary treatment whose probability depends on $X_1$ and $X_4$.
+- **$Z$:** the continuous latent variable. Treatment adds exactly 1 to
+  $Z$, so the target is $\theta_0=1$.
+- **$Y$:** the observed five-category response, obtained by cutting $Z$ at
+  $-1.5$, $-0.3$, $0.8$, and $1.8$.
+
+Each simulated sample has 3,000 observations. The outcome depends on linear,
+sine, and squared terms, so the learner must find a nonlinear pattern among
+many irrelevant variables.
+
+### A flexible, structured learner
+
+The full outcome distribution is fit with `mboost`, which builds a flexible
+model by repeatedly adding small spline-based improvements. We use its
+proportional-odds model: one treatment effect shifts the latent variable in the
+same way across all four category boundaries. Its predictor is
+
+$$
+\alpha D+\sum_{k=1}^{50}f_k(X_k),
+$$
+
+The functions $f_k$ are smooth curves learned from the data. Five-fold
+cross-fitting means that every observation is evaluated by a model trained
+without that observation's fold. A separate 20-sample simulation selected
+2,000 boosting steps from $\{500,1000,2000,5000,10000\}$ by comparing bias in
+the final treatment estimate. The later results use new simulation samples.
+
+Suppose a person is observed in category 3. The fitted cutpoints tell us that
+this person's latent variable $Z$ lies between the second and third cutpoints.
+The model uses the person's treatment and background variables to describe how
+$Z$ is distributed inside that interval. SUDO uses the model's average value
+of $Z$ inside the interval as the surrogate response $S$. Two people in
+category 3 can
+therefore receive different surrogate values because their fitted
+distributions differ. Using the exact conditional average rather than a
+random draw gives the **Rao-Blackwell surrogate response**.
+
+SUDO then uses DML to compare the surrogate responses between treated and
+untreated people after adjusting for $X$. Each standard error comes from 99
+bootstrap samples; the complete fitting and cross-fitting process is rerun in
+every bootstrap sample.
+
+### Ordinal estimators in plain language
+
+- **SUDO, Rao-Blackwell surrogate:** uses the model-implied conditional mean of
+  the latent variable given the observed category as $S$, then uses $S$ as the
+  outcome in DML.
+- **Direct mboost index contrast:** reads the treatment effect directly from
+  the boosted ordinal model. It is a diagnostic for shrinkage in that model.
+- **Oracle latent-variable PLR:** analyzes the unobserved $Z$ using the true
+  treatment model. This impossible-in-practice estimator is a best-case check.
+- **Score-coded DML:** assigns numbers to the categories and applies DML to
+  those numbers.
+- **Oracle score-coded DML:** gives score-coded DML the true nuisance
+  functions. If it still misses 1, machine-learning error is not the cause.
+
+\newpage
+
+### Ordinal results
+
+The tables report 50 new simulation samples. Their columns have the following
+meanings:
+
+- **MC SE** is the Monte Carlo standard error. It measures simulation noise in
+  the reported bias, not uncertainty within one data set.
+- **SD** is the standard deviation of the estimates across the 50 samples.
+- **Mean bootstrap SE** is the average standard error estimated within a
+  sample. **Coverage** is the fraction of 95% intervals containing the truth.
+
+Coverage is shown only for SUDO, for which full-pipeline intervals were built.
+
+```{r}
+ordinal <- read.csv("../../R/results/stage19_mboost_ordinal.csv",
+                    check.names = FALSE)
+ordinal_order <- c("rao_blackwell", "direct_ordinal", "oracle_latent_plr")
+ordinal_labels <- c(
+  rao_blackwell = "SUDO, Rao-Blackwell surrogate",
+  direct_ordinal = "Direct mboost index contrast",
+  oracle_latent_plr = "Oracle latent-variable PLR"
+)
+latent_results <- ordinal[match(ordinal_order, ordinal$estimator), ]
+latent_results$Estimator <- unname(ordinal_labels[latent_results$estimator])
+latent_results$Estimate <- 1 + latent_results$bias
+latent_results <- latent_results[, c(
+  "Estimator", "Estimate", "bias", "mc_se_bias", "sd", "mean_se", "coverage"
+)]
+row.names(latent_results) <- NULL
+names(latent_results) <- c(
+  "Estimator", "Mean", "Bias", "MC SE", "SD", "Mean boot. SE", "Coverage"
+)
+old_na <- getOption("knitr.kable.NA")
+options(knitr.kable.NA = "")
+knitr::kable(
+  latent_results,
+  caption = "Latent-scale estimates; the true coefficient is 1.",
+  digits = 3, booktabs = TRUE,
+  align = c("l", "r", "r", "r", "r", "r", "r")
+)
+options(knitr.kable.NA = old_na)
+```
+
+SUDO's average estimate is 0.995, almost exactly the true value of 1. Its bias
+is $-0.005$, compared with a Monte Carlo SE of 0.011. Coverage is 0.920. With
+only 50 samples, coverage itself has Monte Carlo SE 0.038, so 0.920 is
+statistically compatible with 0.950. The direct mboost estimate is low by
+0.061 because boosting shrinks the fitted treatment contrast.
+
+Ordinary DML was also applied to two different numeric encodings of the same
+ordered categories: equally spaced $(0,2,4,6,8)$ and unevenly spaced
+$(0,0.5,4,7.5,8)$. Oracle versions use the true propensity and true
+conditional mean of the encoded outcome.
+
+```{r}
+score_rows <- c(
+  "dml_equal", "dml_middle", "oracle_dml_equal", "oracle_dml_middle"
+)
+score_labels <- c(
+  dml_equal = "Fitted", dml_middle = "Fitted",
+  oracle_dml_equal = "Oracle", oracle_dml_middle = "Oracle"
+)
+coding_labels <- c(
+  dml_equal = "Equally spaced", dml_middle = "Unevenly spaced",
+  oracle_dml_equal = "Equally spaced", oracle_dml_middle = "Unevenly spaced"
+)
+score_results <- ordinal[match(score_rows, ordinal$estimator), ]
+score_table <- data.frame(
+  Nuisances = unname(score_labels[score_results$estimator]),
+  `Category scores` = unname(coding_labels[score_results$estimator]),
+  Mean = 1 + score_results$bias,
+  Bias = score_results$bias,
+  `MC SE` = score_results$mc_se_bias,
+  check.names = FALSE
+)
+knitr::kable(
+  score_table,
+  caption = "DML applied directly to numeric category scores.",
+  digits = 3, booktabs = TRUE,
+  align = c("l", "l", "r", "r", "r")
+)
+```
+
+Changing only the category numbers shifts the ordinary DML estimate by 0.174
+(Monte Carlo SE 0.004). Even with the true nuisance functions, the shift is
+0.170 (Monte Carlo SE 0.005). Better prediction and more cross-fitting cannot
+recover the latent coefficient from arbitrary category scores. These DML
+estimators are not broken. They accurately answer a question defined by the
+chosen numbers, but that question is not the latent treatment effect.
+
+The ordinal experiment extends the binary lesson: SUDO can use a flexible,
+high-dimensional outcome model and still estimate a clearly defined latent
+effect with useful uncertainty estimates. The proportional-odds assumption
+and the common treatment effect remain important. This result does not show
+that SUDO survives an arbitrary black box or a wrong ordinal link.
+
+For transparency, the original simulation script also demanded that the
+direct boosted contrast have bias below 0.03. Its bias was $-0.061$, so the
+script ended with a failed overall assertion. The SUDO bias, coverage,
+standard-error, numerical, oracle, and category-coding checks all passed.
