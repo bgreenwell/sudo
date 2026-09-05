@@ -509,16 +509,165 @@ header-includes:
 
 ## Proposition 1: surrogate-response identity
 
-- Under the correct conditional distribution,
+### Explanation in words
+
+- The observed category tells us only the interval containing the unobserved
+  latent response $Z$.
+- Under the correct outcome model, we know the conditional distribution of
+  $Z$ within that interval.
+- A randomized surrogate replaces the missing $Z$ with a new draw from that
+  same conditional distribution.
+- Averaging first over surrogate draws and then over the possible observed
+  categories must therefore return the original conditional mean of $Z$.
+- The Rao-Blackwell surrogate uses the conditional average within the
+  observed interval instead of making a random draw. Averaging those interval
+  means over the categories also returns the original conditional mean.
+- Thus both surrogate responses preserve the latent treatment signal
+  $\theta_0D+g_0(X)$. Rao-Blackwellization removes avoidable draw noise, but
+  it does not correct an incorrect outcome model.
+
+### Claim
+
+Assume $Z$ is integrable, its latent error has a continuous CDF $F$, and
+
+$$
+E(Z\mid D,X)=\eta_0(D,X)=\theta_0D+g_0(X).
+$$
+
+Let the observed binary or ordinal outcome $Y$ identify the interval
+$A_Y=(\kappa_{Y-1},\kappa_Y]$ containing $Z$. Suppose the conditional
+distribution used to construct the surrogate is the true distribution of
+$Z\mid Y,D,X$, and each relevant category has positive conditional
+probability. For the cumulative-link models considered here, this requires
+the declared link, index, and thresholds to be correct.
+
+Define the randomized surrogate response by
+
+$$
+S^{\mathrm{rand}}\mid Y,D,X
+\sim \mathcal L(Z\mid Y,D,X),
+$$
+
+and define the Rao-Blackwell surrogate response by
+
+$$
+S^{\mathrm{RB}}=E(Z\mid Y,D,X)
+=E(S^{\mathrm{rand}}\mid Y,D,X).
+$$
+
+Then
+
+$$
+E(S^{\mathrm{rand}}\mid D,X)
+=E(S^{\mathrm{RB}}\mid D,X)
+=\theta_0D+g_0(X).
+$$
+
+### Proof for the randomized surrogate response
+
+- Write $\eta_0=\eta_0(D,X)$ and let $F$ be the CDF of the latent error in
+  $Z=\eta_0+\varepsilon$.
+- For an observation in category $j$, define
 
   $$
-  E(S\mid D,X)=\theta_0D+g_0(X).
+  a_j=F(\kappa_{j-1}-\eta_0),\qquad
+  b_j=F(\kappa_j-\eta_0).
   $$
 
-- Prove for:
-  - randomized surrogate response;
-  - Rao-Blackwell surrogate response.
-- Explain the result in words before the proof.
+- If $U\sim\operatorname{Uniform}(0,1)$ independently of the data, the
+  inverse-CDF construction is
+
+  $$
+  S^{\mathrm{rand}}
+  =\eta_0+F^{-1}\{a_j+U(b_j-a_j)\}.
+  $$
+
+- For $s\in(\kappa_{j-1},\kappa_j]$, its conditional CDF is
+
+  $$
+  \begin{aligned}
+  P(S^{\mathrm{rand}}\leq s\mid Y=j,D,X)
+  &=\frac{F(s-\eta_0)-a_j}{b_j-a_j}\\
+  &=P(Z\leq s\mid Y=j,D,X).
+  \end{aligned}
+  $$
+
+  Hence the inverse-CDF construction is exactly a draw from
+  $Z\mid Y,D,X$.
+- Therefore
+
+  $$
+  E(S^{\mathrm{rand}}\mid Y,D,X)=E(Z\mid Y,D,X).
+  $$
+
+- Applying iterated expectations gives
+
+  $$
+  \begin{aligned}
+  E(S^{\mathrm{rand}}\mid D,X)
+  &=E\{E(S^{\mathrm{rand}}\mid Y,D,X)\mid D,X\}\\
+  &=E\{E(Z\mid Y,D,X)\mid D,X\}\\
+  &=E(Z\mid D,X)\\
+  &=\theta_0D+g_0(X).
+  \end{aligned}
+  $$
+
+### Proof for the Rao-Blackwell surrogate response
+
+- By definition,
+
+  $$
+  S^{\mathrm{RB}}=E(Z\mid Y,D,X).
+  $$
+
+- A second application of iterated expectations gives
+
+  $$
+  \begin{aligned}
+  E(S^{\mathrm{RB}}\mid D,X)
+  &=E\{E(Z\mid Y,D,X)\mid D,X\}\\
+  &=E(Z\mid D,X)\\
+  &=\theta_0D+g_0(X).
+  \end{aligned}
+  $$
+
+### Rao-Blackwell variance consequence
+
+- Conditional on $(D,X)$,
+
+  $$
+  \begin{aligned}
+  \operatorname{Var}(S^{\mathrm{rand}}\mid D,X)
+  &=E\{\operatorname{Var}(Z\mid Y,D,X)\mid D,X\}\\
+  &\quad+\operatorname{Var}\{E(Z\mid Y,D,X)\mid D,X\},\\
+  \operatorname{Var}(S^{\mathrm{RB}}\mid D,X)
+  &=\operatorname{Var}\{E(Z\mid Y,D,X)\mid D,X\}.
+  \end{aligned}
+  $$
+
+- Therefore
+
+  $$
+  \operatorname{Var}(S^{\mathrm{RB}}\mid D,X)
+  \leq \operatorname{Var}(S^{\mathrm{rand}}\mid D,X).
+  $$
+
+- This variance reduction explains why the Rao-Blackwell completion is useful
+  when its conditional mean is available analytically or can be computed
+  accurately.
+
+### Scope of the proposition
+
+- The equalities above are population identities under the true conditional
+  distribution.
+- With an estimated outcome model, the surrogate is generated from
+  $\widehat{\mathcal L}(Z\mid Y,D,X)$, so the identity is generally only
+  approximate in finite samples.
+- Cross-fitting controls reuse of the observations but does not make an
+  incorrect fitted distribution correct.
+- Consistency of the fitted conditional distribution, together with regularity
+  conditions for the completion functional, is what transfers this identity
+  to the estimated SUDO procedure.
 
 ## Proposition 2: score coding does not identify the latent effect
 
