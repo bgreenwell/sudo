@@ -39,6 +39,21 @@ use a full-pipeline bootstrap to propagate model uncertainty. Counts also
 admit an analytic Rao-Blackwell completion that integrates out the randomized
 reference draw.
 
+For cumulative-link models, this randomized completion is the latent
+surrogate response introduced for model diagnostics by
+[Liu and Zhang](https://doi.org/10.1080/01621459.2017.1292915) and implemented
+in [`sure`](https://github.com/bgreenwell/sure). SUDO does not introduce that
+response. It uses the response as an outcome for treatment-effect estimation,
+removes the part explained by `X` while retaining the treatment component,
+and adds cross-fitting and uncertainty propagation. Stage 20 verifies exact
+seeded agreement for binary logit/probit and ordinal logit/probit/cloglog,
+after accounting for `sure`'s ordinal threshold-origin normalization.
+
+The current local `sure` development version is an exception for binary
+cloglog: it selects Gumbel-min, while a binomial cloglog GLM requires
+Gumbel-max. SUDO uses the required binary convention. The discrepancy is
+documented in [`sure` issue 45](https://github.com/bgreenwell/sure/issues/45).
+
 Two caveats are structural and worth stating up front. The true index must
 have the form $\eta_0(D,X)=\theta_0 D+g_0(X)$. A fitted imputation learner
 need only supply a pointwise scalar index and usable conditional CDF; it need
@@ -74,7 +89,8 @@ cd python && uv sync
 ```
 
 R scripts need `ordinal`, `mgcv`, `mboost`, `splines`, `nnet`, `MASS`,
-`earth`, `statmod`, `xgboost`, and `ranger`.
+`earth`, `statmod`, `xgboost`, and `ranger`. Stage 20 also needs `pkgload` and
+a local checkout of `sure`; set `SURE_SOURCE` if it is not at `../../r/sure`.
 
 ## Quick start
 
@@ -115,6 +131,7 @@ Rscript R/theory_discrete_completion.R # randomized-PIT centering across laws
 Rscript R/stage13_binary_cloglog.R     # flexible non-logit binary confirmation
 Rscript R/stage14t_ordinal_tuning.R    # target-level tuning on dedicated seeds
 Rscript R/stage14_ordinal_flexible.R   # flexible ordinal confirmation
+Rscript R/stage20_sure_equivalence.R   # latent-surrogate parity with local sure
 Rscript R/theory_count_completion.R    # analytic count completion and edge checks
 Rscript R/stage15o_count_oracle.R      # passed six-cell count oracle bridge
 Rscript R/stage15t_count_tuning.R      # dedicated-seed count learner tuning
@@ -137,6 +154,7 @@ writes a summary CSV to `R/results/`.
   counterparts hold under high-level conditions that have not been verified
   for the learners actually implemented.
 - `AGENTS.md` documents the workflow, layout, and key design decisions.
+- `TODO.md` records the current validation and paper-development roadmap.
 
 ## Development
 

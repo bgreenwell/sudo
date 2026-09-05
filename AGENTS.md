@@ -14,6 +14,11 @@ fitted-learner uncertainty propagated by the full-pipeline bootstrap. The
 theory notes are in the paper's asymptotic-theory appendix; the paper is in
 `manuscript/paper/`.
 
+For cumulative-link outcomes, SUDO adopts the latent surrogate response from
+the surrogate-residual literature and the `sure` package. SUDO's contribution
+is the treatment-effect estimation and inference layer around that response,
+not the response construction itself.
+
 ## Workflow: R first, then Python
 
 Every methodological change is prototyped and validated in an `R/stageN_*.R`
@@ -39,6 +44,7 @@ Rscript R/stage5_ordinal_dml.R         # ordinal, spline clm, gam nuisances (par
 Rscript R/stage5r_ordinal_refit.R      # corrected ordinal per-draw outcome nuisance
 Rscript R/stage6_link_misspec.R        # cloglog truth vs logit analyst, plus diagnostics
 Rscript R/stage7_dgp_variation.R       # continuous D, dimension, overlap, interaction arms
+Rscript R/stage20_sure_equivalence.R   # seeded parity checks against local sure source
 Rscript R/wine_application.R           # application: volatile acidity on ordinal wine quality
 Rscript R/wine_sensitivity.R           # adjustment-set robustness and omitted-variable bound
 Rscript R/wine_imputation_sensitivity.R # pass-through cbar1 and treatment-direction bound
@@ -83,7 +89,7 @@ sudo/
 ├── manuscript/
 │   ├── paper/       # Quarto arxiv draft and references.bib
 │   └── data/wine/   # UCI wine-quality data for the application
-├── AGENTS.md  CLAUDE.md  README.md  LICENSE
+├── AGENTS.md  CLAUDE.md  README.md  TODO.md  LICENSE
 ```
 
 R scripts source helpers with `source("R/sudo/...")` and must be run from the
@@ -112,6 +118,15 @@ repository root.
   draws under-cover (about 0.93); stage 2 quantifies this.
 - **Full model includes D.** It estimates `P(Y | D, X)`; the outcome nuisance
   `E[S | X]` strips `D` back out; cross-fitting prevents leakage.
+- **The cumulative-link surrogate is established methodology.** Stage 20
+  verifies that seeded SUDO and `sure::surrogate(method = "latent")` draws
+  agree exactly for binary logit/probit and ordinal logit/probit/cloglog after
+  `sure`'s harmless ordinal threshold-origin shift. The `sure` diagnostic
+  subtracts `E[S | D, X]`; SUDO retains `S` as an outcome and removes only
+  `E[S | X]`, preserving the treatment component. Local `sure` 0.3.0.9000
+  maps binary `glm` cloglog to Gumbel-min, but that GLM requires Gumbel-max.
+  SUDO keeps the correct binary convention; see
+  [`sure` issue 45](https://github.com/bgreenwell/sure/issues/45).
 - **Binary nuisances fit once; ordinal outcome nuisances do not.** Stage 3b
   shows that binary nuisance refitting changes nothing. Stage 5r shows that
   reusing one outcome nuisance across ordinal completions inflates Rubin's
